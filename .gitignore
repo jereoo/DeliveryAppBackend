@@ -1,3 +1,4 @@
+echo.> .gitignore
 echo *.pyc >> .gitignore
 echo __pycache__/ >> .gitignore
 echo *.py[cod] >> .gitignore
@@ -13,3 +14,6 @@ echo *.swp >> .gitignore
 echo *~ >> .gitignore
 echo .DS_Store >> .gitignore
 echo .env >> .gitignore
+git add .gitignore
+git commit -m "Update .gitignore"
+git push origin main
