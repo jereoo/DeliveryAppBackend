@@ -1,3 +1,4 @@
+# delivery/admin.py
 from django.contrib import admin
 from django import forms
 from .models import Delivery, Driver, Vehicle, DeliveryAssignment, DriverVehicle
@@ -9,22 +10,19 @@ class DeliveryAssignmentAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Disable vehicle field so it's read-only in the admin form
         self.fields['vehicle'].disabled = True
 
 @admin.register(Delivery)
 class DeliveryAdmin(admin.ModelAdmin):
-    list_display = ('order_id', 'customer_name', 'customer_address', 'pickup_location', 'dropoff_location', 'status', 'created_at')
+    list_display = ('id', 'customer_name', 'customer_address', 'pickup_location', 'dropoff_location', 'status', 'created_at')
     list_filter = ('status', 'created_at')
-    search_fields = ('order_id', 'customer_name', 'customer_address', 'pickup_location', 'dropoff_location')
+    search_fields = ('customer_name', 'customer_address', 'pickup_location', 'dropoff_location')
     
-    # Make order_id read-only and display it at the top
-    readonly_fields = ('order_id', 'created_at')
+    readonly_fields = ('created_at',)  # Fixed: Added trailing comma
     
     fieldsets = (
         (None, {
             'fields': (
-                'order_id',  # Shows order_id at the top, read-only
                 'customer_name', 'customer_address',
                 'same_pickup_as_customer', 'pickup_location', 'dropoff_location',
                 'status'
@@ -35,7 +33,6 @@ class DeliveryAdmin(admin.ModelAdmin):
             'classes': ('collapse',),
         }),
     )
-
 
 @admin.register(Driver)
 class DriverAdmin(admin.ModelAdmin):
@@ -54,7 +51,7 @@ class DeliveryAssignmentAdmin(admin.ModelAdmin):
     form = DeliveryAssignmentAdminForm
     list_display = ('delivery', 'driver', 'vehicle', 'assigned_at')
     list_filter = ('assigned_at',)
-    search_fields = ('delivery__order_id', 'driver__name', 'vehicle__license_plate')
+    search_fields = ('delivery__id', 'driver__name', 'vehicle__license_plate')  # Updated from delivery__order_id
 
 @admin.register(DriverVehicle)
 class DriverVehicleAdmin(admin.ModelAdmin):

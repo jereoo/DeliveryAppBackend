@@ -1,46 +1,7 @@
 from django.db import models
 from django.utils import timezone
 
-
-# class Delivery(models.Model):
-#     order_id = models.CharField(max_length=100)
-#     customer_name = models.CharField(max_length=255)
-#     address = models.TextField()
-#     status = models.CharField(max_length=50, default='Pending')
-#     created_at = models.DateTimeField(auto_now_add=True)
-
-#     def __str__(self):
-#         return f"Delivery {self.order_id} for {self.customer_name}"
-
-# class Delivery(models.Model):
-#     order_id = models.AutoField(primary_key=True)  # Auto-increment
-#     #order_id = models.CharField(max_length=100)
-#     customer_name = models.CharField(max_length=255)
-    
-#     # New fields:
-#     pickup_location = models.TextField()
-#     dropoff_location = models.TextField()
-    
-#     # Existing customer address remains, or you can rename it if preferred
-#     customer_address = models.TextField()
-
-#     # Checkbox option to mark if customer_address and pickup_location are same
-#     same_pickup_as_customer = models.BooleanField(default=False)
-
-#     status = models.CharField(max_length=50, default='Pending')
-#     created_at = models.DateTimeField(auto_now_add=True)
-
-#     def __str__(self):
-#         return f"Delivery {self.order_id} for {self.customer_name}"
-
-#     def save(self, *args, **kwargs):
-#         # If checkbox is True, sync pickup_location with customer_address automatically
-#         if self.same_pickup_as_customer:
-#             self.pickup_location = self.customer_address
-#         super().save(*args, **kwargs)
-
 class Delivery(models.Model):
-    order_id = models.AutoField(primary_key=True)
     customer_name = models.CharField(max_length=255)
     pickup_location = models.TextField()
     dropoff_location = models.TextField()
@@ -55,7 +16,7 @@ class Delivery(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Delivery {self.order_id} for {self.customer_name}"
+        return f"Delivery {self.id} for {self.customer_name}"
 
     
 class Driver(models.Model):
@@ -118,4 +79,4 @@ class DeliveryAssignment(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Assignment for {self.delivery.order_id} to {self.driver}"
+        return f"Assignment for {self.delivery.id} to {self.driver}"
