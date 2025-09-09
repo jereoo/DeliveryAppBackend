@@ -2,12 +2,21 @@ from django.db import models
 from django.utils import timezone
 
 class Delivery(models.Model):
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('En Route', 'En Route'),
+        ('Completed', 'Completed'),
+        ('Cancelled', 'Cancelled'),
+    ]
+
     customer_name = models.CharField(max_length=255)
     pickup_location = models.TextField()
     dropoff_location = models.TextField()
     customer_address = models.TextField()
     same_pickup_as_customer = models.BooleanField(default=False)
-    status = models.CharField(max_length=50, default='Pending')
+    item_description = models.CharField(max_length=255, help_text="Describe the item to be picked up (e.g. TV, sofa, furniture)", default='Pending')
+    #status = models.CharField(max_length=50, default='Pending')
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Pending')
     delivery_date = models.DateField(null=True, blank=True)
     delivery_time = models.TimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

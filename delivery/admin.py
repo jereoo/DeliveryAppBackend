@@ -24,7 +24,7 @@ class DeliveryAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {
             'fields': (
-                'customer_name', 'customer_address',
+                'customer_name', 'customer_address', 'item_description', 
                 'same_pickup_as_customer', 'pickup_location', 'dropoff_location',
                 'status', 'delivery_date', 'delivery_time'
             )
