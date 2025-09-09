@@ -3,6 +3,7 @@ from django.contrib import admin
 from django import forms
 from .models import Delivery, Driver, Vehicle, DeliveryAssignment, DriverVehicle
 
+# Custom form for admin, vehicle, driver, delivery assignment
 class DeliveryAssignmentAdminForm(forms.ModelForm):
     class Meta:
         model = DeliveryAssignment
@@ -25,7 +26,7 @@ class DeliveryAdmin(admin.ModelAdmin):
             'fields': (
                 'customer_name', 'customer_address',
                 'same_pickup_as_customer', 'pickup_location', 'dropoff_location',
-                'status'
+                'status', 'delivery_date', 'delivery_time'
             )
         }),
         ('Timestamps', {

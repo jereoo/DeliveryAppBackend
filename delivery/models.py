@@ -8,6 +8,8 @@ class Delivery(models.Model):
     customer_address = models.TextField()
     same_pickup_as_customer = models.BooleanField(default=False)
     status = models.CharField(max_length=50, default='Pending')
+    delivery_date = models.DateField(null=True, blank=True)
+    delivery_time = models.TimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
