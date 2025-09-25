@@ -1,7 +1,7 @@
 # delivery/admin.py
 from django.contrib import admin
 from django import forms
-from .models import Delivery, Driver, Vehicle, DeliveryAssignment, DriverVehicle
+from .models import Delivery, Driver, Vehicle, DeliveryAssignment, DriverVehicle, Customer
 
 # Custom form for admin, vehicle, driver, delivery assignment
 class DeliveryAssignmentAdminForm(forms.ModelForm):
@@ -13,24 +13,47 @@ class DeliveryAssignmentAdminForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['vehicle'].disabled = True
 
+@admin.register(Customer)
+class CustomerAdmin(admin.ModelAdmin):
+    list_display = ('display_name', 'user_username', 'user_email', 'phone_number', 'is_business', 'active', 'created_at')
+    list_filter = ('is_business', 'active', 'created_at')
+    search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name', 'company_name', 'phone_number')
+    readonly_fields = ('created_at',)
+    
+    def user_username(self, obj):
+        return obj.user.username
+    user_username.short_description = 'Username'
+    
+    def user_email(self, obj):
+        return obj.user.email
+    user_email.short_description = 'Email'
+
 @admin.register(Delivery)
 class DeliveryAdmin(admin.ModelAdmin):
-    list_display = ('id', 'customer_name', 'customer_address', 'pickup_location', 'dropoff_location', 'status', 'created_at')
+    list_display = ('id', 'customer_display_name', 'pickup_location', 'dropoff_location', 'status', 'created_at')
     list_filter = ('status', 'created_at')
-    search_fields = ('customer_name', 'customer_address', 'pickup_location', 'dropoff_location')
+    search_fields = ('customer__user__username', 'customer__user__email', 'customer__company_name', 
+                    'pickup_location', 'dropoff_location', 'item_description')
     
-    readonly_fields = ('created_at',)  # Fixed: Added trailing comma
+    readonly_fields = ('created_at', 'updated_at')
+    
+    def customer_display_name(self, obj):
+        return obj.customer.display_name
+    customer_display_name.short_description = 'Customer'
     
     fieldsets = (
         (None, {
             'fields': (
-                'customer_name', 'customer_address', 'item_description', 
-                'same_pickup_as_customer', 'pickup_location', 'dropoff_location',
-                'status', 'delivery_date', 'delivery_time'
+                'customer', 'item_description', 'same_pickup_as_customer', 'use_preferred_pickup',
+                'pickup_location', 'same_dropoff_as_customer', 'dropoff_location', 'status', 'delivery_date', 'delivery_time'
             )
         }),
+        ('Additional Info', {
+            'fields': ('special_instructions', 'estimated_cost'),
+            'classes': ('collapse',),
+        }),
         ('Timestamps', {
-            'fields': ('created_at',),
+            'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',),
         }),
     )

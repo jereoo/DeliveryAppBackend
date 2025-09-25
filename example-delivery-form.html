@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delivery Request Form - Example</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, textarea, select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        input[type="checkbox"] { width: auto; }
+        button { background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        .checkbox-group { display: flex; align-items: center; gap: 8px; }
+        .disabled { background-color: #f8f9fa; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <h1>Request Delivery</h1>
+    
+    <form id="deliveryForm">
+        <div class="form-group">
+            <label>Customer Information (Read-only)</label>
+            <input type="text" id="customerName" value="John Smith" readonly class="disabled">
+            <input type="text" id="customerAddress" value="123 Main St, Downtown" readonly class="disabled">
+        </div>
+
+        <div class="form-group">
+            <div class="checkbox-group">
+                <input type="checkbox" id="samePickupAsCustomer" onchange="handlePickupCheckbox()">
+                <label for="samePickupAsCustomer">☑️ Pickup location is same as customer address</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="pickupLocation">Pickup Location:</label>
+            <textarea id="pickupLocation" rows="2" placeholder="Enter pickup address"></textarea>
+        </div>
+
+        <div class="form-group">
+            <div class="checkbox-group">
+                <input type="checkbox" id="sameDropoffAsCustomer" onchange="handleDropoffCheckbox()">
+                <label for="sameDropoffAsCustomer">☑️ Dropoff location is same as customer address</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="dropoffLocation">Dropoff Location:</label>
+            <textarea id="dropoffLocation" rows="2" placeholder="Enter dropoff address"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="itemDescription">Item Description:</label>
+            <input type="text" id="itemDescription" placeholder="e.g., Furniture, Electronics, Documents">
+        </div>
+
+        <div class="form-group">
+            <label for="deliveryDate">Delivery Date:</label>
+            <input type="date" id="deliveryDate">
+        </div>
+
+        <div class="form-group">
+            <label for="deliveryTime">Delivery Time:</label>
+            <input type="time" id="deliveryTime">
+        </div>
+
+        <div class="form-group">
+            <label for="specialInstructions">Special Instructions:</label>
+            <textarea id="specialInstructions" rows="3" placeholder="Any special handling or delivery instructions"></textarea>
+        </div>
+
+        <button type="submit">Request Delivery</button>
+    </form>
+
+    <script>
+        // Get customer address for auto-filling
+        const customerAddress = document.getElementById('customerAddress').value;
+
+        function handlePickupCheckbox() {
+            const checkbox = document.getElementById('samePickupAsCustomer');
+            const pickupField = document.getElementById('pickupLocation');
+            
+            if (checkbox.checked) {
+                // Auto-fill with customer address
+                pickupField.value = customerAddress;
+                pickupField.classList.add('disabled');
+                pickupField.readOnly = true;
+            } else {
+                // Clear and enable manual entry
+                pickupField.value = '';
+                pickupField.classList.remove('disabled');
+                pickupField.readOnly = false;
+            }
+        }
+
+        function handleDropoffCheckbox() {
+            const checkbox = document.getElementById('sameDropoffAsCustomer');
+            const dropoffField = document.getElementById('dropoffLocation');
+            
+            if (checkbox.checked) {
+                // Auto-fill with customer address
+                dropoffField.value = customerAddress;
+                dropoffField.classList.add('disabled');
+                dropoffField.readOnly = true;
+            } else {
+                // Clear and enable manual entry
+                dropoffField.value = '';
+                dropoffField.classList.remove('disabled');
+                dropoffField.readOnly = false;
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('deliveryForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Get JWT token (you'll need to implement login first)
+            const token = localStorage.getItem('jwtToken'); // Assuming token is stored in localStorage
+            
+            if (!token) {
+                alert('Please log in first');
+                return;
+            }
+
+            const formData = {
+                pickup_location: document.getElementById('pickupLocation').value,
+                dropoff_location: document.getElementById('dropoffLocation').value,
+                same_pickup_as_customer: document.getElementById('samePickupAsCustomer').checked,
+                same_dropoff_as_customer: document.getElementById('sameDropoffAsCustomer').checked,
+                item_description: document.getElementById('itemDescription').value,
+                delivery_date: document.getElementById('deliveryDate').value,
+                delivery_time: document.getElementById('deliveryTime').value,
+                special_instructions: document.getElementById('specialInstructions').value
+            };
+
+            try {
+                const response = await fetch('http://localhost:8000/api/deliveries/request_delivery/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('Delivery requested successfully!');
+                    console.log('Delivery created:', result);
+                    // Reset form or redirect
+                    document.getElementById('deliveryForm').reset();
+                } else {
+                    alert('Error: ' + JSON.stringify(result));
+                    console.error('Error:', result);
+                }
+            } catch (error) {
+                alert('Network error: ' + error.message);
+                console.error('Network error:', error);
+            }
+        });
+
+        // Set default date to today
+        document.getElementById('deliveryDate').value = new Date().toISOString().split('T')[0];
+    </script>
+</body>
+</html>

@@ -1,6 +1,8 @@
 # DeliveryAppBackend
 
-A Django app for managing deliveries with a REST API, enabling package delivery using drivers and vehicles for customers.
+**Build**: v1.0.0-build.001 | **Status**: ✅ BACKEND COMPLETE
+
+A Django REST API for managing package deliveries with complete self-registration workflow. Drivers self-register with their vehicles, customers register individually, and request deliveries from location A to location B.
 
 ## Setup
 

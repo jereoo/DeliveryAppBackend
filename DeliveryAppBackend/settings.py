@@ -9,9 +9,9 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-
 from pathlib import Path
 from decouple import config
+from datetime import timedelta # override simple jwt settings for timeouts
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -139,4 +139,12 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10
+}
+
+# override simple jwt settings for timeouts
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),  # tokens valid for 15 minutes
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),     # refresh token valid for 7 days
+    "ROTATE_REFRESH_TOKENS": True,                   # optional: issue new refresh token on use
+    "BLACKLIST_AFTER_ROTATION": True,                # optional: old refresh token becomes invalid
 }
