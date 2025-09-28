@@ -16,8 +16,18 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include  # Add 'include' here
+from django.http import JsonResponse
+
+def health_check(request):
+    """Simple health check endpoint"""
+    return JsonResponse({
+        'status': 'ok',
+        'message': 'DeliveryApp API is running!',
+        'version': '1.0.0'
+    })
 
 urlpatterns = [
+    path('', health_check, name='health_check'),  # Root URL health check
     path('admin/', admin.site.urls),
     path('api/', include('delivery.urls')),  # Include delivery app URLs
 ]

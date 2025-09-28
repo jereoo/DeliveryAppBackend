@@ -12,4 +12,8 @@
     *.swp
     *~
     .DS_Store
-    .env
+    .envfrontend/node_modules/
+.expo/
+last-token.txt
+*.pyc
+__pycache__/

@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DEBUG = True
 
 # for mobile app testing
-ALLOWED_HOSTS = ["127.0.0.1", "localhost", "192.168.1.79"]
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "192.168.1.82", "172.20.10.6"]
 
 
 # Application definition
@@ -36,11 +36,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     'rest_framework',
     'delivery',
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -148,3 +150,13 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,                   # optional: issue new refresh token on use
     "BLACKLIST_AFTER_ROTATION": True,                # optional: old refresh token becomes invalid
 }
+
+# CORS settings for React frontend
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+]
+
+CORS_ALLOW_CREDENTIALS = True
