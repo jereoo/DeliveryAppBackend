@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DEBUG = True
 
 # for mobile app testing
-ALLOWED_HOSTS = ["127.0.0.1", "localhost", "192.168.1.82", "172.20.10.6"]
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "192.168.1.82", "192.168.1.87", "172.20.10.6"]
 
 
 # Application definition

@@ -21,7 +21,8 @@ export default function App() {
 
   // Network endpoints to try (home office first, then mobile hotspot)
   const NETWORK_ENDPOINTS = [
-    { url: 'http://192.168.1.82:8081', name: 'Home Office Network' },
+    { url: 'http://192.168.1.87:8081', name: 'Home Office Network' },
+    { url: 'http://192.168.1.82:8081', name: 'Home Office Network (Alt)' },
     { url: 'http://172.20.10.6:8081', name: 'Mobile Hotspot' }
   ];
   

@@ -12,8 +12,21 @@
     *.swp
     *~
     .DS_Store
-    .envfrontend/node_modules/
+    .env
+
+# Frontend
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+frontend/coverage/
+
+# Mobile
 .expo/
+node_modules/
+
+# Backend
 last-token.txt
 *.pyc
 __pycache__/
+venv/
+.pytest_cache/
