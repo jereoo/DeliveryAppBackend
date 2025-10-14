@@ -1,9 +1,27 @@
 # DeliveryAppBackend - Build Information
 
 ## Build Details
-- **Build Number**: v2.0.0-build.001
-- **Build Date**: September 28, 2025
-- **Status**: ✅ COMPLETE FULL-STACK SYSTEM WITH MOBILE APP
+- **Build Number**: v2.0.1-build.002
+- **Build Date**: October 14, 2025
+- **Status**: ✅ PRODUCTION-READY WITH NETWORK SECURITY FIXES
+
+## Release Notes - v2.0.1
+**NETWORK SECURITY & FIREWALL COMPATIBILITY UPDATE**
+
+### 🔒 **Security & Network Fixes (October 14, 2025)**
+- ✅ **Norton Antivirus Compatibility**: Resolved firewall blocking Python/Node.js network access
+- ✅ **Multi-IP Support**: Added fallback IP addresses for network changes (192.168.1.87, 192.168.1.82)
+- ✅ **Public WiFi Ready**: Norton configured for public and private network access
+- ✅ **Smart Network Detection**: Enhanced mobile app with multiple endpoint fallbacks
+- ✅ **Git Repository Cleanup**: Excluded node_modules and temporary files from version control
+
+### 🌐 **Network Configuration Improvements**
+- ✅ **Dynamic IP Detection**: System adapts to changing network environments
+- ✅ **Coffee Shop Compatible**: Works on public WiFi networks
+- ✅ **Firewall Rules**: Proper security exceptions for development servers
+- ✅ **Cross-Device Reliability**: Improved connection stability across devices
+
+---
 
 ## Release Notes - v2.0.0
 **COMPLETE SUCCESS: Full-Stack Mobile Delivery Management System**
