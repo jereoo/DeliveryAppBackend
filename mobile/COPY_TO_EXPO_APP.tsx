@@ -1,16 +1,60 @@
-// 🚚 DeliveryApp Mobile - Modern Expo App
+// 🚚 DeliveryApp Mobile - Complete Feature Set
 // Copy this content to C:\Users\360WEB\DeliveryAppMobile\App.tsx
 
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Button, Alert, ScrollView, ActivityIndicator } from 'react-native';
+import { 
+  StyleSheet, 
+  Text, 
+  View, 
+  Button, 
+  Alert, 
+  ScrollView, 
+  ActivityIndicator, 
+  TextInput, 
+  TouchableOpacity,
+  Switch
+} from 'react-native';
 
 interface DeliveryData {
   id: number;
-  customer_name: string;
+  customer_name?: string;
   pickup_location: string;
   dropoff_location: string;
   status: string;
+  item_description?: string;
 }
+
+interface CustomerData {
+  username: string;
+  email: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+  phone_number: string;
+  address: string;
+  company_name?: string;
+  is_business: boolean;
+}
+
+interface DriverData {
+  username: string;
+  email: string;
+  password: string;
+  name: string;
+  phone_number: string;
+  license_number: string;
+  vehicle_id?: number;
+}
+
+interface DeliveryRequest {
+  pickup_location: string;
+  dropoff_location: string;
+  item_description: string;
+  same_pickup_as_customer: boolean;
+  use_preferred_pickup: boolean;
+}
+
+type Screen = 'main' | 'customer_register' | 'driver_register' | 'delivery_request' | 'login';
 
 export default function App() {
   const [backendStatus, setBackendStatus] = useState('Checking...');
