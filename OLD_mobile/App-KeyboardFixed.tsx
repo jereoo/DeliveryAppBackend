@@ -1,0 +1,1119 @@
+// 🚚 DeliveryApp Mobile - KEYBOARD ISSUE FIXED
+// Copy this file as App.tsx to your DeliveryAppMobile directory
+// FIXES: Virtual keyboard blocking bottom form fields
+
+/**
+ * DEPLOYMENT INSTRUCTIONS:
+ * 1. Copy this entire file content
+ * 2. Paste it as App.tsx in your DeliveryAppMobile directory  
+ * 3. Restart Expo server: npx expo start --port 19000
+ * 4. Test customer registration on phone - keyboard should no longer block fields
+ */
+
+import React, { useState, useEffect } from 'react';
+import { 
+  StyleSheet, 
+  Text, 
+  View, 
+  Button, 
+  Alert, 
+  ScrollView, 
+  ActivityIndicator, 
+  TextInput, 
+  Switch,
+  TouchableOpacity,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform
+} from 'react-native';
+
+export default function App() {
+  // ========================================
+  // STATE MANAGEMENT
+  // ========================================
+  
+  const [currentScreen, setCurrentScreen] = useState('main');
+  const [backendStatus, setBackendStatus] = useState('Checking...');
+  const [loading, setLoading] = useState(false);
+  const [authToken, setAuthToken] = useState(null);
+  const [userType, setUserType] = useState(null); // 'admin', 'customer', 'driver'
+  
+  // Data states
+  const [deliveries, setDeliveries] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [drivers, setDrivers] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [driverVehicles, setDriverVehicles] = useState([]);
+
+  // Network detection
+  const NETWORK_ENDPOINTS = [
+    { url: 'http://192.168.1.87:8081', name: 'Home Office Network' },
+    { url: 'http://192.168.1.82:8081', name: 'Home Office Network (Alt)' },
+    { url: 'http://172.20.10.6:8081', name: 'Mobile Hotspot' }
+  ];
+  
+  const [API_BASE, setApiBase] = useState(NETWORK_ENDPOINTS[0].url);
+  const [currentNetwork, setCurrentNetwork] = useState('Detecting...');
+
+  // Form states
+  const [customerForm, setCustomerForm] = useState({
+    username: '',
+    email: '',
+    password: '',
+    first_name: '',
+    last_name: '',
+    phone_number: '',
+    address: '',
+    company_name: '',
+    is_business: false,
+    preferred_pickup_address: ''
+  });
+
+  const [driverForm, setDriverForm] = useState({
+    username: '',
+    email: '',
+    password: '',
+    name: '',
+    phone_number: '',
+    license_number: '',
+    vehicle_license_plate: '',
+    vehicle_model: '',
+    vehicle_capacity: 1000
+  });
+
+  const [vehicleForm, setVehicleForm] = useState({
+    license_plate: '',
+    model: '',
+    capacity: 1000,
+    capacity_unit: 'kg'
+  });
+
+  const [deliveryForm, setDeliveryForm] = useState({
+    pickup_location: '',
+    dropoff_location: '',
+    item_description: '',
+    same_pickup_as_customer: false,
+    use_preferred_pickup: false
+  });
+
+  const [loginForm, setLoginForm] = useState({
+    username: '',
+    password: ''
+  });
+
+  // ========================================
+  // NETWORK & BACKEND FUNCTIONS
+  // ========================================
+
+  const checkBackend = async () => {
+    for (const endpoint of NETWORK_ENDPOINTS) {
+      try {
+        const response = await fetch(`${endpoint.url}/api/`, {
+          method: 'GET',
+          timeout: 3000
+        });
+        
+        if (response.status === 401 || response.status === 200) {
+          setApiBase(endpoint.url);
+          setCurrentNetwork(endpoint.name);
+          setBackendStatus('✅ Connected');
+          return;
+        }
+      } catch (error) {
+        console.log(`Failed to connect to ${endpoint.name}`);
+      }
+    }
+    
+    setBackendStatus('❌ No Backend Found');
+    setCurrentNetwork('Not Connected');
+  };
+
+  // ========================================
+  // API FUNCTIONS
+  // ========================================
+
+  const makeAuthenticatedRequest = async (endpoint, options = {}) => {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(authToken && { 'Authorization': `Bearer ${authToken}` }),
+      ...options.headers
+    };
+
+    return fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers
+    });
+  };
+
+  // Authentication Functions
+  const login = async () => {
+    if (!loginForm.username || !loginForm.password) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/token/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginForm)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAuthToken(data.access);
+        
+        // Determine user type by checking available endpoints
+        await determineUserType(data.access);
+        
+        setCurrentScreen('dashboard');
+        setLoginForm({ username: '', password: '' });
+        Alert.alert('Success', 'Logged in successfully!');
+      } else {
+        const errorData = await response.json();
+        Alert.alert('Login Failed', errorData.detail || 'Invalid credentials');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Network error during login');
+    }
+    setLoading(false);
+  };
+
+  const determineUserType = async (token) => {
+    // Try customer profile first
+    try {
+      const customerResponse = await fetch(`${API_BASE}/api/customers/me/`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (customerResponse.ok) {
+        setUserType('customer');
+        return;
+      }
+    } catch (error) {
+      console.log('Not a customer user');
+    }
+
+    // Default to admin if customer check fails
+    setUserType('admin');
+  };
+
+  // Registration Functions
+  const registerCustomer = async () => {
+    if (!customerForm.username || !customerForm.email || !customerForm.password) {
+      Alert.alert('Error', 'Please fill in all required fields (*, username, email, password)');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/customers/register/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(customerForm)
+      });
+
+      if (response.ok) {
+        Alert.alert('Success', 'Customer registered successfully! You can now login.');
+        setCustomerForm({
+          username: '', email: '', password: '', first_name: '', last_name: '',
+          phone_number: '', address: '', company_name: '', is_business: false,
+          preferred_pickup_address: ''
+        });
+        setCurrentScreen('login');
+      } else {
+        const errorData = await response.json();
+        Alert.alert('Registration Failed', JSON.stringify(errorData));
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Network error during registration');
+    }
+    setLoading(false);
+  };
+
+  const registerDriver = async () => {
+    // Validate required fields
+    if (!driverForm.username || !driverForm.email || !driverForm.password || 
+        !driverForm.name || !driverForm.phone_number || !driverForm.license_number ||
+        !driverForm.vehicle_license_plate || !driverForm.vehicle_model) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/drivers/register/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(driverForm)
+      });
+
+      if (response.ok) {
+        Alert.alert('Success', 'Driver registered successfully! You can now login.');
+        setDriverForm({
+          username: '', email: '', password: '', name: '', phone_number: '',
+          license_number: '', vehicle_license_plate: '', vehicle_model: '', vehicle_capacity: 1000
+        });
+        setCurrentScreen('login');
+      } else {
+        const errorData = await response.json();
+        Alert.alert('Registration Failed', JSON.stringify(errorData));
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Network error during driver registration');
+    }
+    setLoading(false);
+  };
+
+  // Data Loading Functions
+  const loadData = async () => {
+    if (!authToken) return;
+
+    setLoading(true);
+    try {
+      // Load all data based on user type
+      if (userType === 'admin' || userType === 'driver') {
+        await Promise.all([
+          loadDeliveries(),
+          loadCustomers(),
+          loadDrivers(),
+          loadVehicles(),
+          loadAssignments(),
+          loadDriverVehicles()
+        ]);
+      } else if (userType === 'customer') {
+        await loadMyDeliveries();
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
+    setLoading(false);
+  };
+
+  const loadDeliveries = async () => {
+    try {
+      const response = await makeAuthenticatedRequest('/api/deliveries/');
+      if (response.ok) {
+        const data = await response.json();
+        setDeliveries(data.results || data);
+      }
+    } catch (error) {
+      console.error('Error loading deliveries:', error);
+    }
+  };
+
+  const loadMyDeliveries = async () => {
+    try {
+      const response = await makeAuthenticatedRequest('/api/customers/my_deliveries/');
+      if (response.ok) {
+        const data = await response.json();
+        setDeliveries(data.results || data);
+      }
+    } catch (error) {
+      console.error('Error loading my deliveries:', error);
+    }
+  };
+
+  const loadCustomers = async () => {
+    try {
+      const response = await makeAuthenticatedRequest('/api/customers/');
+      if (response.ok) {
+        const data = await response.json();
+        setCustomers(data.results || data);
+      }
+    } catch (error) {
+      console.error('Error loading customers:', error);
+    }
+  };
+
+  const loadDrivers = async () => {
+    try {
+      const response = await makeAuthenticatedRequest('/api/drivers/');
+      if (response.ok) {
+        const data = await response.json();
+        setDrivers(data.results || data);
+      }
+    } catch (error) {
+      console.error('Error loading drivers:', error);
+    }
+  };
+
+  const loadVehicles = async () => {
+    try {
+      const response = await makeAuthenticatedRequest('/api/vehicles/');
+      if (response.ok) {
+        const data = await response.json();
+        setVehicles(data.results || data);
+      }
+    } catch (error) {
+      console.error('Error loading vehicles:', error);
+    }
+  };
+
+  const loadAssignments = async () => {
+    try {
+      const response = await makeAuthenticatedRequest('/api/assignments/');
+      if (response.ok) {
+        const data = await response.json();
+        setAssignments(data.results || data);
+      }
+    } catch (error) {
+      console.error('Error loading assignments:', error);
+    }
+  };
+
+  const loadDriverVehicles = async () => {
+    try {
+      const response = await makeAuthenticatedRequest('/api/driver-vehicles/');
+      if (response.ok) {
+        const data = await response.json();
+        setDriverVehicles(data.results || data);
+      }
+    } catch (error) {
+      console.error('Error loading driver vehicles:', error);
+    }
+  };
+
+  const requestDelivery = async () => {
+    if (!deliveryForm.dropoff_location) {
+      Alert.alert('Error', 'Please provide dropoff location');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await makeAuthenticatedRequest('/api/deliveries/request_delivery/', {
+        method: 'POST',
+        body: JSON.stringify(deliveryForm)
+      });
+
+      if (response.ok) {
+        Alert.alert('Success', 'Delivery requested successfully!');
+        setDeliveryForm({
+          pickup_location: '', dropoff_location: '', item_description: '',
+          same_pickup_as_customer: false, use_preferred_pickup: false
+        });
+        setCurrentScreen('dashboard');
+        await loadData(); // Refresh data
+      } else {
+        const errorData = await response.json();
+        Alert.alert('Error', JSON.stringify(errorData));
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Network error during delivery request');
+    }
+    setLoading(false);
+  };
+
+  // ========================================
+  // EFFECTS
+  // ========================================
+
+  useEffect(() => {
+    checkBackend();
+  }, []);
+
+  useEffect(() => {
+    if (authToken && currentScreen === 'dashboard') {
+      loadData();
+    }
+  }, [authToken, currentScreen, userType]);
+
+  // ========================================
+  // RENDER FUNCTIONS
+  // ========================================
+
+  // Loading Screen
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color="#0066CC" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
+  // Main Welcome Screen
+  if (currentScreen === 'main') {
+    return (
+      <ScrollView style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.title}>🚚 DeliveryApp Mobile</Text>
+          <Text style={styles.subtitle}>Complete Delivery Management System</Text>
+          
+          <View style={styles.statusContainer}>
+            <Text style={styles.statusLabel}>Backend Status</Text>
+            <Text style={styles.status}>{backendStatus}</Text>
+            <Text style={styles.networkLabel}>Network: {currentNetwork}</Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🔐 Authentication</Text>
+            <View style={styles.buttonContainer}>
+              <Button title="🔑 Login" onPress={() => setCurrentScreen('login')} />
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📝 Registration</Text>
+            <View style={styles.buttonContainer}>
+              <Button title="👤 Register as Customer" onPress={() => setCurrentScreen('customer_register')} />
+            </View>
+            <View style={styles.buttonContainer}>
+              <Button title="🚚 Register as Driver" onPress={() => setCurrentScreen('driver_register')} />
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.buttonContainer}>
+              <Button title="🔄 Check Backend" onPress={checkBackend} />
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  // Login Screen
+  if (currentScreen === 'login') {
+    return (
+      <ScrollView style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.title}>🔑 Login</Text>
+          
+          <TextInput
+            style={styles.input}
+            value={loginForm.username}
+            onChangeText={(text) => setLoginForm({...loginForm, username: text})}
+            placeholder="Username"
+            autoCapitalize="none"
+          />
+
+          <TextInput
+            style={styles.input}
+            value={loginForm.password}
+            onChangeText={(text) => setLoginForm({...loginForm, password: text})}
+            placeholder="Password"
+            secureTextEntry
+          />
+
+          <View style={styles.buttonContainer}>
+            <Button title="Login" onPress={login} disabled={loading} />
+          </View>
+          
+          <View style={styles.buttonContainer}>
+            <Button title="Back" onPress={() => setCurrentScreen('main')} />
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.infoText}>
+              Need an account? Go back and register as a customer or driver first.
+            </Text>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  // Customer Registration Screen - KEYBOARD FIXED!
+  if (currentScreen === 'customer_register') {
+    return (
+      <KeyboardAvoidingView 
+        style={styles.container} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+      >
+        <ScrollView 
+          style={styles.container}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
+            <Text style={styles.title}>👤 Customer Registration</Text>
+            
+            <Text style={styles.sectionTitle}>Account Information</Text>
+            <TextInput
+              style={styles.input}
+              value={customerForm.username}
+              onChangeText={(text) => setCustomerForm({...customerForm, username: text})}
+              placeholder="Username *"
+              autoCapitalize="none"
+            />
+
+            <TextInput
+              style={styles.input}
+              value={customerForm.email}
+              onChangeText={(text) => setCustomerForm({...customerForm, email: text})}
+              placeholder="Email *"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+
+            <TextInput
+              style={styles.input}
+              value={customerForm.password}
+              onChangeText={(text) => setCustomerForm({...customerForm, password: text})}
+              placeholder="Password *"
+              secureTextEntry
+            />
+
+            <Text style={styles.sectionTitle}>Personal Information</Text>
+            <TextInput
+              style={styles.input}
+              value={customerForm.first_name}
+              onChangeText={(text) => setCustomerForm({...customerForm, first_name: text})}
+              placeholder="First Name"
+            />
+
+            <TextInput
+              style={styles.input}
+              value={customerForm.last_name}
+              onChangeText={(text) => setCustomerForm({...customerForm, last_name: text})}
+              placeholder="Last Name"
+            />
+
+            <TextInput
+              style={styles.input}
+              value={customerForm.phone_number}
+              onChangeText={(text) => setCustomerForm({...customerForm, phone_number: text})}
+              placeholder="Phone Number"
+              keyboardType="phone-pad"
+            />
+
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              value={customerForm.address}
+              onChangeText={(text) => setCustomerForm({...customerForm, address: text})}
+              placeholder="Address"
+              multiline
+              numberOfLines={3}
+            />
+
+            <Text style={styles.sectionTitle}>Business Customer</Text>
+            <View style={styles.switchContainer}>
+              <Text style={styles.switchLabel}>Is Business Customer</Text>
+              <Switch
+                value={customerForm.is_business}
+                onValueChange={(value) => setCustomerForm({...customerForm, is_business: value})}
+              />
+            </View>
+
+            {customerForm.is_business && (
+              <TextInput
+                style={styles.input}
+                value={customerForm.company_name}
+                onChangeText={(text) => setCustomerForm({...customerForm, company_name: text})}
+                placeholder="Company Name"
+              />
+            )}
+
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              value={customerForm.preferred_pickup_address}
+              onChangeText={(text) => setCustomerForm({...customerForm, preferred_pickup_address: text})}
+              placeholder="Preferred Pickup Address (Optional)"
+              multiline
+              numberOfLines={2}
+            />
+
+            <View style={styles.buttonContainer}>
+              <Button title="Register Customer" onPress={registerCustomer} disabled={loading} />
+            </View>
+            
+            <View style={styles.buttonContainer}>
+              <Button title="Back" onPress={() => setCurrentScreen('main')} />
+            </View>
+
+            {/* Extra padding to ensure buttons are visible above keyboard */}
+            <View style={styles.keyboardPadding} />
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // Driver Registration Screen - KEYBOARD FIXED!
+  if (currentScreen === 'driver_register') {
+    return (
+      <KeyboardAvoidingView 
+        style={styles.container} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+      >
+        <ScrollView 
+          style={styles.container}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
+            <Text style={styles.title}>🚚 Driver Registration</Text>
+            
+            <TextInput
+              style={styles.input}
+              value={driverForm.username}
+              onChangeText={(text) => setDriverForm({...driverForm, username: text})}
+              placeholder="Username *"
+              autoCapitalize="none"
+            />
+
+            <TextInput
+              style={styles.input}
+              value={driverForm.email}
+              onChangeText={(text) => setDriverForm({...driverForm, email: text})}
+              placeholder="Email *"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+
+            <TextInput
+              style={styles.input}
+              value={driverForm.password}
+              onChangeText={(text) => setDriverForm({...driverForm, password: text})}
+              placeholder="Password *"
+              secureTextEntry
+            />
+
+            <TextInput
+              style={styles.input}
+              value={driverForm.name}
+              onChangeText={(text) => setDriverForm({...driverForm, name: text})}
+              placeholder="Full Name *"
+            />
+
+            <TextInput
+              style={styles.input}
+              value={driverForm.phone_number}
+              onChangeText={(text) => setDriverForm({...driverForm, phone_number: text})}
+              placeholder="Phone Number *"
+              keyboardType="phone-pad"
+            />
+
+            <TextInput
+              style={styles.input}
+              value={driverForm.license_number}
+              onChangeText={(text) => setDriverForm({...driverForm, license_number: text})}
+              placeholder="Driver License Number *"
+            />
+
+            <Text style={styles.sectionTitle}>Vehicle Information</Text>
+            <TextInput
+              style={styles.input}
+              value={driverForm.vehicle_license_plate}
+              onChangeText={(text) => setDriverForm({...driverForm, vehicle_license_plate: text})}
+              placeholder="Vehicle License Plate *"
+              autoCapitalize="characters"
+            />
+
+            <TextInput
+              style={styles.input}
+              value={driverForm.vehicle_model}
+              onChangeText={(text) => setDriverForm({...driverForm, vehicle_model: text})}
+              placeholder="Vehicle Model (e.g., Ford Transit Van) *"
+            />
+
+            <TextInput
+              style={styles.input}
+              value={driverForm.vehicle_capacity.toString()}
+              onChangeText={(text) => {
+                const capacity = parseInt(text) || 1000;
+                setDriverForm({...driverForm, vehicle_capacity: capacity});
+              }}
+              placeholder="Vehicle Capacity (kg) *"
+              keyboardType="numeric"
+            />
+
+            <View style={styles.buttonContainer}>
+              <Button title="Register Driver & Vehicle" onPress={registerDriver} disabled={loading} />
+            </View>
+            
+            <View style={styles.buttonContainer}>
+              <Button title="Back" onPress={() => setCurrentScreen('main')} />
+            </View>
+
+            {/* Extra padding to ensure buttons are visible above keyboard */}
+            <View style={styles.keyboardPadding} />
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // Dashboard Screen (Post-Login)
+  if (currentScreen === 'dashboard') {
+    return (
+      <ScrollView style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.title}>📊 Dashboard</Text>
+          <Text style={styles.subtitle}>Welcome, {userType?.toUpperCase()} User!</Text>
+          
+          <View style={styles.statusContainer}>
+            <Text style={styles.statusLabel}>Status: Logged In</Text>
+            <Text style={styles.networkLabel}>User Type: {userType}</Text>
+          </View>
+
+          {/* Customer Dashboard */}
+          {userType === 'customer' && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>📦 Customer Services</Text>
+              <View style={styles.buttonContainer}>
+                <Button title="📋 Request Delivery" onPress={() => setCurrentScreen('delivery_request')} />
+              </View>
+              <View style={styles.buttonContainer}>
+                <Button title="📋 My Deliveries" onPress={() => setCurrentScreen('my_deliveries')} />
+              </View>
+            </View>
+          )}
+
+          {/* Admin Dashboard */}
+          {userType === 'admin' && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🛠️ Admin Management</Text>
+              <View style={styles.buttonContainer}>
+                <Button title="👥 Manage Customers" onPress={() => setCurrentScreen('admin_customers')} />
+              </View>
+              <View style={styles.buttonContainer}>
+                <Button title="🚚 Manage Drivers" onPress={() => setCurrentScreen('admin_drivers')} />
+              </View>
+              <View style={styles.buttonContainer}>
+                <Button title="🚛 Manage Vehicles" onPress={() => setCurrentScreen('admin_vehicles')} />
+              </View>
+              <View style={styles.buttonContainer}>
+                <Button title="📦 Manage Deliveries" onPress={() => setCurrentScreen('admin_deliveries')} />
+              </View>
+            </View>
+          )}
+
+          <View style={styles.buttonContainer}>
+            <Button title="🔄 Refresh Data" onPress={loadData} />
+          </View>
+          
+          <View style={styles.buttonContainer}>
+            <Button title="🚪 Logout" onPress={() => {
+              setAuthToken(null);
+              setUserType(null);
+              setCurrentScreen('main');
+            }} />
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  // Delivery Request Screen (Customer)
+  if (currentScreen === 'delivery_request') {
+    return (
+      <ScrollView style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.title}>📋 Request Delivery</Text>
+          
+          <View style={styles.switchContainer}>
+            <Text style={styles.switchLabel}>Use my address as pickup</Text>
+            <Switch
+              value={deliveryForm.same_pickup_as_customer}
+              onValueChange={(value) => setDeliveryForm({...deliveryForm, same_pickup_as_customer: value})}
+            />
+          </View>
+
+          <View style={styles.switchContainer}>
+            <Text style={styles.switchLabel}>Use preferred pickup address</Text>
+            <Switch
+              value={deliveryForm.use_preferred_pickup}
+              onValueChange={(value) => setDeliveryForm({...deliveryForm, use_preferred_pickup: value})}
+            />
+          </View>
+
+          {!deliveryForm.same_pickup_as_customer && !deliveryForm.use_preferred_pickup && (
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              value={deliveryForm.pickup_location}
+              onChangeText={(text) => setDeliveryForm({...deliveryForm, pickup_location: text})}
+              placeholder="Pickup Location"
+              multiline
+              numberOfLines={2}
+            />
+          )}
+
+          <TextInput
+            style={[styles.input, styles.multilineInput]}
+            value={deliveryForm.dropoff_location}
+            onChangeText={(text) => setDeliveryForm({...deliveryForm, dropoff_location: text})}
+            placeholder="Dropoff Location *"
+            multiline
+            numberOfLines={2}
+          />
+
+          <TextInput
+            style={[styles.input, styles.multilineInput]}
+            value={deliveryForm.item_description}
+            onChangeText={(text) => setDeliveryForm({...deliveryForm, item_description: text})}
+            placeholder="Item Description"
+            multiline
+            numberOfLines={3}
+          />
+
+          <View style={styles.buttonContainer}>
+            <Button title="Request Delivery" onPress={requestDelivery} disabled={loading} />
+          </View>
+          
+          <View style={styles.buttonContainer}>
+            <Button title="Back to Dashboard" onPress={() => setCurrentScreen('dashboard')} />
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  // My Deliveries Screen (Customer)
+  if (currentScreen === 'my_deliveries') {
+    return (
+      <ScrollView style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.title}>📋 My Deliveries</Text>
+          
+          {deliveries.length === 0 ? (
+            <Text style={styles.infoText}>No deliveries found</Text>
+          ) : (
+            <FlatList
+              data={deliveries}
+              keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+              renderItem={({ item }) => (
+                <View style={styles.itemContainer}>
+                  <Text style={styles.itemTitle}>📦 Delivery #{item.id}</Text>
+                  <Text>From: {item.pickup_location}</Text>
+                  <Text>To: {item.dropoff_location}</Text>
+                  <Text>Status: {item.status}</Text>
+                  {item.item_description && <Text>Items: {item.item_description}</Text>}
+                </View>
+              )}
+            />
+          )}
+
+          <View style={styles.buttonContainer}>
+            <Button title="Back to Dashboard" onPress={() => setCurrentScreen('dashboard')} />
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  // Admin Screens (Simplified for space)
+  if (currentScreen.startsWith('admin_')) {
+    const entityName = currentScreen.replace('admin_', '');
+    const entityData = {
+      customers: customers,
+      drivers: drivers,
+      vehicles: vehicles,
+      deliveries: deliveries
+    }[entityName] || [];
+
+    return (
+      <ScrollView style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.title}>🛠️ Manage {entityName.charAt(0).toUpperCase() + entityName.slice(1)}</Text>
+          
+          {entityData.length === 0 ? (
+            <Text style={styles.infoText}>No {entityName} found</Text>
+          ) : (
+            <FlatList
+              data={entityData}
+              keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+              renderItem={({ item }) => (
+                <View style={styles.itemContainer}>
+                  <Text style={styles.itemTitle}>
+                    {entityName === 'customers' && `👤 ${item.user?.first_name || item.first_name} ${item.user?.last_name || item.last_name}`}
+                    {entityName === 'drivers' && `🚚 ${item.name}`}
+                    {entityName === 'vehicles' && `🚛 ${item.license_plate} - ${item.model}`}
+                    {entityName === 'deliveries' && `📦 Delivery #${item.id}`}
+                  </Text>
+                  {entityName === 'customers' && (
+                    <>
+                      <Text>Email: {item.user?.email || item.email}</Text>
+                      <Text>Phone: {item.phone_number}</Text>
+                      <Text>Type: {item.is_business ? 'Business' : 'Individual'}</Text>
+                    </>
+                  )}
+                  {entityName === 'drivers' && (
+                    <>
+                      <Text>License: {item.license_number}</Text>
+                      <Text>Phone: {item.phone_number}</Text>
+                      <Text>Status: {item.active ? 'Active' : 'Inactive'}</Text>
+                    </>
+                  )}
+                  {entityName === 'vehicles' && (
+                    <>
+                      <Text>Model: {item.model}</Text>
+                      <Text>Capacity: {item.capacity} {item.capacity_unit || 'kg'}</Text>
+                      <Text>Status: {item.active ? 'Active' : 'Inactive'}</Text>
+                    </>
+                  )}
+                  {entityName === 'deliveries' && (
+                    <>
+                      <Text>From: {item.pickup_location}</Text>
+                      <Text>To: {item.dropoff_location}</Text>
+                      <Text>Status: {item.status}</Text>
+                    </>
+                  )}
+                </View>
+              )}
+            />
+          )}
+
+          <View style={styles.buttonContainer}>
+            <Button title="🔄 Refresh" onPress={loadData} />
+          </View>
+          
+          <View style={styles.buttonContainer}>
+            <Button title="Back to Dashboard" onPress={() => setCurrentScreen('dashboard')} />
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  // Default fallback
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>🚚 DeliveryApp Mobile</Text>
+      <Text>Screen not found: {currentScreen}</Text>
+      <Button title="Go to Main" onPress={() => setCurrentScreen('main')} />
+    </View>
+  );
+}
+
+// ========================================
+// STYLES - KEYBOARD OPTIMIZED
+// ========================================
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  content: {
+    padding: 20,
+  },
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 10,
+    color: '#333',
+  },
+  subtitle: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+    color: '#666',
+  },
+  section: {
+    marginVertical: 15,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#333',
+  },
+  itemContainer: {
+    padding: 15,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  itemTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 5,
+    color: '#333',
+  },
+  statusContainer: {
+    padding: 15,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  statusLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 5,
+    color: '#333',
+  },
+  status: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  networkLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 5,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+  },
+  buttonContainer: {
+    marginVertical: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#f9f9f9',
+    marginBottom: 10,
+  },
+  multilineInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 15,
+    marginBottom: 10,
+  },
+  switchLabel: {
+    fontSize: 16,
+    color: '#333',
+    flex: 1,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginVertical: 10,
+  },
+  // KEYBOARD FIX STYLES
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 100, // Extra padding for keyboard
+  },
+  keyboardPadding: {
+    height: 200, // Extra space to ensure buttons are visible above keyboard
+  },
+});
