@@ -23,8 +23,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-# for mobile app testing
-ALLOWED_HOSTS = ["127.0.0.1", "localhost", "192.168.1.82", "192.168.1.87", "172.20.10.6"]
+# for mobile app testing - flexible for changing IP addresses
+if DEBUG:
+    # In development, allow all local network IPs
+    ALLOWED_HOSTS = ['*']  # Allow all hosts in development
+else:
+    # Production settings would go here
+    ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
 
 # Application definition
@@ -36,13 +41,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'corsheaders',
+    # 'corsheaders',  # Temporarily disabled
     'rest_framework',
     'delivery',
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
+    # 'corsheaders.middleware.CorsMiddleware',  # Temporarily disabled
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',

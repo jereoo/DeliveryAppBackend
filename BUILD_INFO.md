@@ -1,9 +1,33 @@
 # DeliveryAppBackend - Build Information
 
 ## Build Details
-- **Build Number**: v2.0.2-mobile-success
-- **Build Date**: October 14, 2025
-- **Status**: ✅ MOBILE APP FULLY OPERATIONAL
+- **Build Number**: v2.1.0-driver-fix
+- **Build Date**: October 23, 2025
+- **Status**: ✅ COMPLETE SYSTEM OPERATIONAL - Driver Registration Fixed
+
+## Release Notes - v2.1.0 (October 23, 2025)
+**DRIVER REGISTRATION FIX + COMPLETE SYSTEM TESTING SUCCESS**
+
+### 🔧 **Driver Registration Enhancement**
+- ✅ **CRITICAL FIX**: Driver registration now accepts `full_name` field
+- ✅ **API FLEXIBILITY**: Supports both `full_name` OR `first_name`+`last_name` formats
+- ✅ **AUTO-SPLITTING**: "Mike Johnson" → first:"Mike", last:"Johnson" 
+- ✅ **MOBILE COMPATIBILITY**: Fixed "requires first and last name" error
+- ✅ **VALIDATION ENHANCED**: Comprehensive name field processing
+
+### 🎯 **Live Testing Results**
+- ✅ **CUSTOMER REGISTRATION**: Real user `john.jack` successfully created via mobile
+- ✅ **DELIVERY REQUESTS**: Live delivery ID `411` processed correctly
+- ✅ **AUTO-ADDRESS**: "Same pickup as customer" functionality verified
+- ✅ **JWT AUTHENTICATION**: Complete login/logout workflow operational
+
+### 🧪 **Test Data Generation System**
+- ✅ **AUTOMATED TESTING**: Django management command `create_test_data`
+- ✅ **REALISTIC DATA**: 45 customers + 65 drivers with vehicles created
+- ✅ **BUSINESS LOGIC**: Individual/business customer mix, vehicle assignments
+- ✅ **MOBILE READY**: Complete test accounts for comprehensive testing
+
+## Previous Release Notes - v2.0.2
 
 ## Release Notes - v2.0.2
 **MOBILE APP DEPLOYMENT SUCCESS**

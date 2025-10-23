@@ -291,8 +291,9 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', help_text="Username for login")
     email = serializers.EmailField(source='user.email', help_text="Email address")
     password = serializers.CharField(source='user.password', write_only=True, min_length=8, help_text="Password for login")
-    first_name = serializers.CharField(source='user.first_name', required=True, help_text="Driver's first name")
-    last_name = serializers.CharField(source='user.last_name', required=True, help_text="Driver's last name")
+    first_name = serializers.CharField(source='user.first_name', required=False, help_text="Driver's first name")
+    last_name = serializers.CharField(source='user.last_name', required=False, help_text="Driver's last name")
+    full_name = serializers.CharField(write_only=True, required=False, help_text="Full name (alternative to first_name + last_name)")
     
     vehicle_license_plate = serializers.CharField(write_only=True, help_text="Vehicle license plate")
     vehicle_model = serializers.CharField(write_only=True, help_text="Vehicle model")
@@ -306,9 +307,36 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Driver
-        fields = ['username', 'email', 'password', 'first_name', 'last_name',
+        fields = ['username', 'email', 'password', 'first_name', 'last_name', 'full_name',
                  'name', 'phone_number', 'license_number', 'vehicle_license_plate', 
                  'vehicle_model', 'vehicle_capacity', 'vehicle_capacity_unit']
+    
+    def validate(self, data):
+        """Validate and process name fields"""
+        # Extract user data for processing
+        user_data = data.get('user', {})
+        full_name = data.get('full_name')
+        
+        # If full_name is provided, split it into first_name and last_name
+        if full_name:
+            name_parts = full_name.strip().split()
+            if len(name_parts) < 2:
+                raise serializers.ValidationError({
+                    'full_name': 'Please provide both first and last name (e.g., "John Smith")'
+                })
+            
+            # Set first_name and last_name from full_name
+            user_data['first_name'] = name_parts[0]
+            user_data['last_name'] = ' '.join(name_parts[1:])  # Handle multiple last names
+            data['user'] = user_data
+        
+        # Ensure we have either full_name or both first_name and last_name
+        elif not (user_data.get('first_name') and user_data.get('last_name')):
+            raise serializers.ValidationError({
+                'name': 'Please provide either full_name or both first_name and last_name'
+            })
+        
+        return data
     
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
@@ -334,6 +362,9 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         from django.utils import timezone
+        
+        # Remove full_name from validated_data if present (already processed in validate())
+        validated_data.pop('full_name', None)
         
         # Extract user and vehicle data
         user_data = validated_data.pop('user')
