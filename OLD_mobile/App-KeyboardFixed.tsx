@@ -869,7 +869,7 @@ export default function App() {
   // My Deliveries Screen (Customer)
   if (currentScreen === 'my_deliveries') {
     return (
-      <ScrollView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.content}>
           <Text style={styles.title}>📋 My Deliveries</Text>
           
@@ -888,29 +888,37 @@ export default function App() {
                   {item.item_description && <Text>Items: {item.item_description}</Text>}
                 </View>
               )}
+              ListFooterComponent={() => (
+                <View style={styles.buttonContainer}>
+                  <Button title="Back to Dashboard" onPress={() => setCurrentScreen('dashboard')} />
+                </View>
+              )}
             />
           )}
 
-          <View style={styles.buttonContainer}>
-            <Button title="Back to Dashboard" onPress={() => setCurrentScreen('dashboard')} />
-          </View>
+          {deliveries.length === 0 && (
+            <View style={styles.buttonContainer}>
+              <Button title="Back to Dashboard" onPress={() => setCurrentScreen('dashboard')} />
+            </View>
+          )}
         </View>
-      </ScrollView>
+      </View>
     );
   }
 
   // Admin Screens (Simplified for space)
   if (currentScreen.startsWith('admin_')) {
     const entityName = currentScreen.replace('admin_', '');
-    const entityData = {
+    const entityDataMap = {
       customers: customers,
       drivers: drivers,
       vehicles: vehicles,
       deliveries: deliveries
-    }[entityName] || [];
+    };
+    const entityData = (entityDataMap as any)[entityName] || [];
 
     return (
-      <ScrollView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.content}>
           <Text style={styles.title}>🛠️ Manage {entityName.charAt(0).toUpperCase() + entityName.slice(1)}</Text>
           
@@ -919,8 +927,8 @@ export default function App() {
           ) : (
             <FlatList
               data={entityData}
-              keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-              renderItem={({ item }) => (
+              keyExtractor={(item: any) => item.id?.toString() || Math.random().toString()}
+              renderItem={({ item }: { item: any }) => (
                 <View style={styles.itemContainer}>
                   <Text style={styles.itemTitle}>
                     {entityName === 'customers' && `👤 ${item.user?.first_name || item.first_name} ${item.user?.last_name || item.last_name}`}
@@ -958,18 +966,31 @@ export default function App() {
                   )}
                 </View>
               )}
+              ListFooterComponent={() => (
+                <View>
+                  <View style={styles.buttonContainer}>
+                    <Button title="🔄 Refresh" onPress={loadData} />
+                  </View>
+                  <View style={styles.buttonContainer}>
+                    <Button title="Back to Dashboard" onPress={() => setCurrentScreen('dashboard')} />
+                  </View>
+                </View>
+              )}
             />
           )}
 
-          <View style={styles.buttonContainer}>
-            <Button title="🔄 Refresh" onPress={loadData} />
-          </View>
-          
-          <View style={styles.buttonContainer}>
-            <Button title="Back to Dashboard" onPress={() => setCurrentScreen('dashboard')} />
-          </View>
+          {entityData.length === 0 && (
+            <View>
+              <View style={styles.buttonContainer}>
+                <Button title="🔄 Refresh" onPress={loadData} />
+              </View>
+              <View style={styles.buttonContainer}>
+                <Button title="Back to Dashboard" onPress={() => setCurrentScreen('dashboard')} />
+              </View>
+            </View>
+          )}
         </View>
-      </ScrollView>
+      </View>
     );
   }
 
