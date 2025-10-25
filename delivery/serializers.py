@@ -17,7 +17,7 @@ class CustomerSerializer(serializers.ModelSerializer):
         model = Customer
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'full_name', 'display_name', 
                  'phone_number', 'address', 'address_unit', 'address_street', 'address_city', 
-                 'address_state', 'address_postal_code', 'full_address', 'company_name', 'is_business', 
+                 'address_state', 'address_postal_code', 'address_country', 'full_address', 'company_name', 'is_business', 
                  'preferred_pickup_address', 'created_at', 'active']
     
     def get_full_name(self, obj):
@@ -54,8 +54,8 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = ['username', 'email', 'password', 'first_name', 'last_name', 
-                 'phone_number', 'address', 'address_unit', 'address_street', 'address_city', 
-                 'address_state', 'address_postal_code', 'company_name', 'is_business', 'preferred_pickup_address']
+                 'phone_number', 'address_unit', 'address_street', 'address_city', 
+                 'address_state', 'address_postal_code', 'address_country', 'company_name', 'is_business', 'preferred_pickup_address']
     
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
@@ -66,6 +66,33 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("Email already registered")
         return value
+    
+    def validate(self, data):
+        """Custom validation for postal code based on country"""
+        import re
+        
+        postal_code = data.get('address_postal_code')
+        country = data.get('address_country')
+        
+        if postal_code and country:
+            postal_code = postal_code.strip().upper()
+            
+            if country == 'CA':
+                # Canadian postal code format: A1A 1A1
+                canadian_pattern = r'^[A-Z]\d[A-Z]\s?\d[A-Z]\d$'
+                if not re.match(canadian_pattern, postal_code):
+                    raise serializers.ValidationError({
+                        'address_postal_code': 'Canadian postal codes must be in the format A1A 1A1 (e.g., K1A 0A6)'
+                    })
+            elif country == 'US':
+                # US ZIP code format: 12345 or 12345-1234
+                us_pattern = r'^\d{5}(-\d{4})?$'
+                if not re.match(us_pattern, postal_code):
+                    raise serializers.ValidationError({
+                        'address_postal_code': 'US ZIP codes must be in the format 12345 or 12345-1234'
+                    })
+        
+        return data
     
     def create(self, validated_data):
         user_data = validated_data.pop('user')
@@ -79,8 +106,10 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
             last_name=user_data.get('last_name', '')
         )
         
-        # Create Customer profile
-        customer = Customer.objects.create(user=user, **validated_data)
+        # Create Customer profile (skip model validation since we already validated)
+        customer = Customer(**validated_data)
+        customer.user = user
+        customer.save(validate=False)
         return customer
 
 

@@ -1,8 +1,15 @@
 from django.db import models
-from django.utils import timezone
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.utils import timezone
+import re
 
 class Customer(models.Model):
+    COUNTRY_CHOICES = [
+        ('CA', 'Canada'),
+        ('US', 'United States'),
+    ]
+    
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='customer_profile')
     phone_number = models.CharField(max_length=20)
     
@@ -12,6 +19,7 @@ class Customer(models.Model):
     address_city = models.CharField(max_length=100, blank=True, null=True, help_text="City")
     address_state = models.CharField(max_length=100, blank=True, null=True, help_text="State/Province")
     address_postal_code = models.CharField(max_length=20, blank=True, null=True, help_text="Postal/ZIP code")
+    address_country = models.CharField(max_length=2, choices=COUNTRY_CHOICES, default='US', help_text="Country")
     
     # Legacy address field (for migration compatibility)
     address = models.TextField(blank=True, null=True, help_text="Legacy combined address field")
@@ -52,7 +60,44 @@ class Customer(models.Model):
             address_parts.append(self.address_state)
         if self.address_postal_code:
             address_parts.append(self.address_postal_code)
+        if self.address_country:
+            country_name = dict(self.COUNTRY_CHOICES).get(self.address_country, self.address_country)
+            address_parts.append(country_name)
         return ", ".join(address_parts) if address_parts else self.address or ""
+
+    def validate_postal_code(self):
+        """Validate postal code format based on country"""
+        if not self.address_postal_code or not self.address_country:
+            return  # Skip validation if postal code or country is not provided
+            
+        postal_code = self.address_postal_code.strip().upper()
+        
+        if self.address_country == 'CA':
+            # Canadian postal code format: A1A 1A1
+            canadian_pattern = r'^[A-Z]\d[A-Z]\s?\d[A-Z]\d$'
+            if not re.match(canadian_pattern, postal_code):
+                raise ValidationError({
+                    'address_postal_code': 'Canadian postal codes must be in the format A1A 1A1 (e.g., K1A 0A6)'
+                })
+        elif self.address_country == 'US':
+            # US ZIP code format: 12345 or 12345-1234
+            us_pattern = r'^\d{5}(-\d{4})?$'
+            if not re.match(us_pattern, postal_code):
+                raise ValidationError({
+                    'address_postal_code': 'US ZIP codes must be in the format 12345 or 12345-1234'
+                })
+
+    def clean(self):
+        """Custom validation for the model"""
+        super().clean()
+        self.validate_postal_code()
+
+    def save(self, *args, **kwargs):
+        """Override save to run validation"""
+        # Only run validation if explicitly requested
+        if kwargs.pop('validate', False):
+            self.full_clean()
+        super().save(*args, **kwargs)
 
     class Meta:
         ordering = ['-created_at']
