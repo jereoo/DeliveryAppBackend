@@ -5,7 +5,17 @@ from django.contrib.auth.models import User
 class Customer(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='customer_profile')
     phone_number = models.CharField(max_length=20)
-    address = models.TextField()
+    
+    # Separate address fields
+    address_unit = models.CharField(max_length=20, blank=True, null=True, help_text="Unit/Apartment number")
+    address_street = models.CharField(max_length=255, blank=True, null=True, help_text="Street address")
+    address_city = models.CharField(max_length=100, blank=True, null=True, help_text="City")
+    address_state = models.CharField(max_length=100, blank=True, null=True, help_text="State/Province")
+    address_postal_code = models.CharField(max_length=20, blank=True, null=True, help_text="Postal/ZIP code")
+    
+    # Legacy address field (for migration compatibility)
+    address = models.TextField(blank=True, null=True, help_text="Legacy combined address field")
+    
     company_name = models.CharField(max_length=255, blank=True, null=True, help_text="Optional company name")
     is_business = models.BooleanField(default=False, help_text="Is this a business customer?")
     preferred_pickup_address = models.TextField(blank=True, null=True, help_text="Default pickup address if different from main address")
@@ -27,6 +37,22 @@ class Customer(models.Model):
             return self.company_name
         full_name = self.user.get_full_name()
         return full_name if full_name else self.user.username
+    
+    @property
+    def full_address(self):
+        """Combine separate address fields into a single formatted address"""
+        address_parts = []
+        if self.address_unit:
+            address_parts.append(f"Unit {self.address_unit}")
+        if self.address_street:
+            address_parts.append(self.address_street)
+        if self.address_city:
+            address_parts.append(self.address_city)
+        if self.address_state:
+            address_parts.append(self.address_state)
+        if self.address_postal_code:
+            address_parts.append(self.address_postal_code)
+        return ", ".join(address_parts) if address_parts else self.address or ""
 
     class Meta:
         ordering = ['-created_at']

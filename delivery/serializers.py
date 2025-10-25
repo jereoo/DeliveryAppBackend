@@ -6,20 +6,42 @@ from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment
 
 class CustomerSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
-    email = serializers.EmailField(source='user.email', read_only=True)
-    first_name = serializers.CharField(source='user.first_name', read_only=True)
-    last_name = serializers.CharField(source='user.last_name', read_only=True)
+    email = serializers.EmailField(source='user.email')
+    first_name = serializers.CharField(source='user.first_name')
+    last_name = serializers.CharField(source='user.last_name')
     display_name = serializers.CharField(read_only=True)
     full_name = serializers.SerializerMethodField(read_only=True)
+    full_address = serializers.CharField(read_only=True)
     
     class Meta:
         model = Customer
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'full_name', 'display_name', 
-                 'phone_number', 'address', 'company_name', 'is_business', 'preferred_pickup_address', 
-                 'created_at', 'active']
+                 'phone_number', 'address', 'address_unit', 'address_street', 'address_city', 
+                 'address_state', 'address_postal_code', 'full_address', 'company_name', 'is_business', 
+                 'preferred_pickup_address', 'created_at', 'active']
     
     def get_full_name(self, obj):
         return obj.user.get_full_name()
+    
+    def update(self, instance, validated_data):
+        # Extract user data
+        user_data = {}
+        if 'user' in validated_data:
+            user_data = validated_data.pop('user')
+        
+        # Update User fields if provided
+        if user_data:
+            user = instance.user
+            for attr, value in user_data.items():
+                setattr(user, attr, value)
+            user.save()
+        
+        # Update Customer fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        return instance
 
 
 class CustomerRegistrationSerializer(serializers.ModelSerializer):
@@ -32,7 +54,8 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = ['username', 'email', 'password', 'first_name', 'last_name', 
-                 'phone_number', 'address', 'company_name', 'is_business', 'preferred_pickup_address']
+                 'phone_number', 'address', 'address_unit', 'address_street', 'address_city', 
+                 'address_state', 'address_postal_code', 'company_name', 'is_business', 'preferred_pickup_address']
     
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
