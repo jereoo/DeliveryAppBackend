@@ -2,7 +2,7 @@
 
 $Username = "admin"
 $Password = "w3r3w0lf"
-$Url = "http://127.0.0.1:8000/api/token/"
+$Url = "http://192.168.1.85:8081/api/token/"
 
 $Body = @{
     username = $Username

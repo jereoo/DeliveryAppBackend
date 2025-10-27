@@ -172,7 +172,10 @@ class Vehicle(models.Model):
     ]
     
     license_plate = models.CharField(max_length=20, unique=True)
-    model = models.CharField(max_length=100)
+    make = models.CharField(max_length=50, help_text="Vehicle manufacturer (e.g., Ford, Toyota)")
+    model = models.CharField(max_length=50, help_text="Vehicle model (e.g., Transit, Hiace)")
+    year = models.PositiveIntegerField(help_text="Manufacturing year")
+    vin = models.CharField(max_length=17, unique=True, help_text="Vehicle Identification Number")
     capacity = models.PositiveIntegerField(help_text="Vehicle load capacity")
     capacity_unit = models.CharField(
         max_length=2, 
@@ -183,12 +186,17 @@ class Vehicle(models.Model):
     active = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"{self.model} ({self.license_plate}) - {self.capacity}{self.capacity_unit}"
+        return f"{self.make} {self.model} ({self.year}) - {self.license_plate} - {self.capacity}{self.capacity_unit}"
     
     @property
     def capacity_display(self):
         """Return formatted capacity with unit"""
         return f"{self.capacity} {self.get_capacity_unit_display()}"
+
+    @property
+    def full_model(self):
+        """Return combined make and model for backward compatibility"""
+        return f"{self.make} {self.model}"
 
     class Meta:
         ordering = ['-id']

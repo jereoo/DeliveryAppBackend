@@ -266,10 +266,11 @@ class DriverSerializer(serializers.ModelSerializer):
 
 class VehicleSerializer(serializers.ModelSerializer):
     capacity_display = serializers.CharField(read_only=True, help_text="Formatted capacity with unit")
+    full_model = serializers.CharField(read_only=True, help_text="Combined make and model for backward compatibility")
     
     class Meta:
         model = Vehicle
-        fields = ['id', 'license_plate', 'model', 'capacity', 'capacity_unit', 'capacity_display', 'active']
+        fields = ['id', 'license_plate', 'make', 'model', 'year', 'vin', 'capacity', 'capacity_unit', 'capacity_display', 'full_model', 'active']
     
     def validate_capacity(self, value):
         """Validate capacity is reasonable"""
@@ -278,6 +279,26 @@ class VehicleSerializer(serializers.ModelSerializer):
         if value > 50000:  # 50,000 kg or lb seems like a reasonable max
             raise serializers.ValidationError("Capacity seems unreasonably high")
         return value
+    
+    def validate_year(self, value):
+        """Validate year is reasonable"""
+        from datetime import datetime
+        current_year = datetime.now().year
+        if value < 1900:
+            raise serializers.ValidationError("Year must be 1900 or later")
+        if value > current_year + 1:  # Allow next year for new models
+            raise serializers.ValidationError(f"Year cannot be later than {current_year + 1}")
+        return value
+    
+    def validate_vin(self, value):
+        """Validate VIN format"""
+        if len(value) != 17:
+            raise serializers.ValidationError("VIN must be exactly 17 characters")
+        # Basic VIN validation - no I, O, Q characters
+        invalid_chars = set('IOQ')
+        if any(char in invalid_chars for char in value.upper()):
+            raise serializers.ValidationError("VIN cannot contain I, O, or Q characters")
+        return value.upper()
 
 
 class DriverVehicleSerializer(serializers.ModelSerializer):
