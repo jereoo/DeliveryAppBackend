@@ -232,15 +232,15 @@ export default function App() {
             <Text style={styles.label}>Country *</Text>
             <View style={{ flexDirection: 'row', marginBottom: 10 }}>
               <View style={{ flex: 1, marginRight: 5 }}>
-                <Button 
-                  title={form.address_country === 'CA' ? '🇨🇦 Canada' : 'Canada (CA)'} 
+                <Button
+                  title={form.address_country === 'CA' ? '🇨🇦 Canada' : 'Canada (CA)'}
                   onPress={() => setForm((f: typeof form) => ({ ...f, address_country: 'CA' }))}
                   color={form.address_country === 'CA' ? '#007AFF' : '#8E8E93'}
                 />
               </View>
               <View style={{ flex: 1, marginLeft: 5 }}>
-                <Button 
-                  title={form.address_country === 'US' ? '🇺🇸 USA' : 'USA (US)'} 
+                <Button
+                  title={form.address_country === 'US' ? '🇺🇸 USA' : 'USA (US)'}
                   onPress={() => setForm((f: typeof form) => ({ ...f, address_country: 'US' }))}
                   color={form.address_country === 'US' ? '#007AFF' : '#8E8E93'}
                 />
@@ -680,14 +680,14 @@ export default function App() {
         console.log(`API Base: ${API_BASE}`);
         console.log(`Auth Token: ${authToken ? authToken.substring(0, 20) + '...' : 'None'}`);
         console.log(`Form Data:`, form);
-        
+
         const response = await makeAuthenticatedRequest('/api/deliveries/request_delivery/', {
           method: 'POST',
           body: JSON.stringify(form)
         });
 
         console.log(`Response Status: ${response.status}`);
-        
+
         if (response.ok) {
           Alert.alert('Success', 'Delivery requested successfully!');
           setForm({
@@ -2952,15 +2952,15 @@ export default function App() {
             <Text style={styles.label}>Country *</Text>
             <View style={{ flexDirection: 'row', marginBottom: 10 }}>
               <View style={{ flex: 1, marginRight: 5 }}>
-                <Button 
-                  title={customerForm.address_country === 'CA' ? '🇨🇦 Canada (CA)' : 'Canada (CA)'} 
+                <Button
+                  title={customerForm.address_country === 'CA' ? '🇨🇦 Canada (CA)' : 'Canada (CA)'}
                   onPress={() => setCustomerForm({ ...customerForm, address_country: 'CA' })}
                   color={customerForm.address_country === 'CA' ? '#007AFF' : '#8E8E93'}
                 />
               </View>
               <View style={{ flex: 1, marginLeft: 5 }}>
-                <Button 
-                  title={customerForm.address_country === 'US' ? '🇺🇸 USA (US)' : 'USA (US)'} 
+                <Button
+                  title={customerForm.address_country === 'US' ? '🇺🇸 USA (US)' : 'USA (US)'}
                   onPress={() => setCustomerForm({ ...customerForm, address_country: 'US' })}
                   color={customerForm.address_country === 'US' ? '#007AFF' : '#8E8E93'}
                 />
