@@ -5,8 +5,9 @@ from django.contrib.auth.models import User
 from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer
 
 class CustomerSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(source='user.username', read_only=True)
+    username = serializers.CharField(source='user.username')
     email = serializers.EmailField(source='user.email')
+    password = serializers.CharField(source='user.password', write_only=True, min_length=8)
     first_name = serializers.CharField(source='user.first_name')
     last_name = serializers.CharField(source='user.last_name')
     display_name = serializers.CharField(read_only=True)
@@ -15,7 +16,7 @@ class CustomerSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Customer
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'full_name', 'display_name', 
+        fields = ['id', 'username', 'email', 'password', 'first_name', 'last_name', 'full_name', 'display_name', 
                  'phone_number', 'address', 'address_unit', 'address_street', 'address_city', 
                  'address_state', 'address_postal_code', 'address_country', 'full_address', 'company_name', 'is_business', 
                  'preferred_pickup_address', 'created_at', 'active']
@@ -23,24 +24,39 @@ class CustomerSerializer(serializers.ModelSerializer):
     def get_full_name(self, obj):
         return obj.user.get_full_name()
     
+    def create(self, validated_data):
+        # Extract user data from validated_data
+        user_data = validated_data.pop('user')
+        user = User.objects.create(
+            username=user_data.get('username'),
+            email=user_data.get('email'),
+            first_name=user_data.get('first_name', ''),
+            last_name=user_data.get('last_name', '')
+        )
+        # Set password if provided
+        password = user_data.get('password')
+        if password:
+            user.set_password(password)
+            user.save()
+        # Create the Customer instance
+        customer = Customer.objects.create(user=user, **validated_data)
+        return customer
+
     def update(self, instance, validated_data):
         # Extract user data
         user_data = {}
         if 'user' in validated_data:
             user_data = validated_data.pop('user')
-        
         # Update User fields if provided
         if user_data:
             user = instance.user
             for attr, value in user_data.items():
                 setattr(user, attr, value)
             user.save()
-        
         # Update Customer fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-        
         return instance
 
 
@@ -370,6 +386,7 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
     
     vehicle_license_plate = serializers.CharField(write_only=True, help_text="Vehicle license plate")
     vehicle_model = serializers.CharField(write_only=True, help_text="Vehicle model")
+    vehicle_year = serializers.IntegerField(write_only=True, help_text="Vehicle manufacturing year")
     vehicle_capacity = serializers.IntegerField(write_only=True, help_text="Vehicle capacity")
     vehicle_capacity_unit = serializers.ChoiceField(
         choices=Vehicle.CAPACITY_UNIT_CHOICES, 
@@ -382,7 +399,7 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
         model = Driver
         fields = ['username', 'email', 'password', 'first_name', 'last_name', 'full_name',
                  'name', 'phone_number', 'license_number', 'vehicle_license_plate', 
-                 'vehicle_model', 'vehicle_capacity', 'vehicle_capacity_unit']
+                 'vehicle_model', 'vehicle_year', 'vehicle_capacity', 'vehicle_capacity_unit']
     
     def validate(self, data):
         """Validate and process name fields"""
@@ -435,20 +452,19 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         from django.utils import timezone
-        
         # Remove full_name from validated_data if present (already processed in validate())
         validated_data.pop('full_name', None)
-        
         # Extract user and vehicle data
         user_data = validated_data.pop('user')
+        vehicle_year = validated_data.pop('vehicle_year')
         vehicle_data = {
             'license_plate': validated_data.pop('vehicle_license_plate'),
             'model': validated_data.pop('vehicle_model'),
+            'year': vehicle_year,
             'capacity': validated_data.pop('vehicle_capacity'),
             'capacity_unit': validated_data.pop('vehicle_capacity_unit'),
             'active': True
         }
-        
         # Create User
         user = User.objects.create_user(
             username=user_data['username'],
@@ -457,19 +473,15 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
             first_name=user_data['first_name'],
             last_name=user_data['last_name']
         )
-        
         # Create driver with user link
         validated_data['name'] = f"{user_data['first_name']} {user_data['last_name']}"
         driver = Driver.objects.create(user=user, **validated_data, active=True)
-        
         # Create vehicle
         vehicle = Vehicle.objects.create(**vehicle_data)
-        
         # Create driver-vehicle assignment
         DriverVehicle.objects.create(
             driver=driver,
             vehicle=vehicle,
             assigned_from=timezone.now().date()
         )
-        
         return driver
