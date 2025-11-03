@@ -90,7 +90,7 @@ export default function App() {
     const [selected, setSelected] = useState<any>(null);
     const [form, setForm] = useState<any>({
       username: '', email: '', password: '', first_name: '', last_name: '', phone_number: '',
-      address_unit: '', address_street: '', address_city: '', address_state: '', address_postal_code: '',
+      address_unit: '', address_street: '', address_city: '', address_state: '', address_postal_code: '', address_country: '',
       company_name: '', is_business: false, preferred_pickup_address: ''
     });
     const [error, setError] = useState<string | null>(null);
@@ -115,6 +115,7 @@ export default function App() {
         address_city: customer.address_city || '',
         address_state: customer.address_state || '',
         address_postal_code: customer.address_postal_code || '',
+        address_country: customer.address_country || '',
         company_name: customer.company_name || '',
         is_business: customer.is_business || false,
         preferred_pickup_address: customer.preferred_pickup_address || ''
@@ -148,7 +149,7 @@ export default function App() {
         setMode('list');
         setForm({
           username: '', email: '', password: '', first_name: '', last_name: '', phone_number: '',
-          address_unit: '', address_street: '', address_city: '', address_state: '', address_postal_code: '',
+          address_unit: '', address_street: '', address_city: '', address_state: '', address_postal_code: '', address_country: '',
           company_name: '', is_business: false, preferred_pickup_address: ''
         });
         await loadCustomers();
@@ -183,7 +184,7 @@ export default function App() {
             </View>
             {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
             <View style={styles.buttonContainer}>
-              <Button title="Add Customer" onPress={() => { setMode('create'); setForm({ username: '', email: '', password: '', first_name: '', last_name: '', phone_number: '', address_unit: '', address_street: '', address_city: '', address_state: '', address_postal_code: '', company_name: '', is_business: false, preferred_pickup_address: '' }); }} />
+              <Button title="Add Customer" onPress={() => { setMode('create'); setForm({ username: '', email: '', password: '', first_name: '', last_name: '', phone_number: '', address_unit: '', address_street: '', address_city: '', address_state: '', address_postal_code: '', address_country: '', company_name: '', is_business: false, preferred_pickup_address: '' }); }} />
             </View>
             {localLoading ? <ActivityIndicator /> : customers.length === 0 ? (
               <Text style={styles.emptyText}>No customers found.</Text>
@@ -228,6 +229,7 @@ export default function App() {
             <TextInput style={styles.input} value={form.address_city} onChangeText={t => setForm((f: typeof form) => ({ ...f, address_city: t }))} placeholder="City" />
             <TextInput style={styles.input} value={form.address_state} onChangeText={t => setForm((f: typeof form) => ({ ...f, address_state: t }))} placeholder="State/Province" />
             <TextInput style={styles.input} value={form.address_postal_code} onChangeText={t => setForm((f: typeof form) => ({ ...f, address_postal_code: t }))} placeholder="Postal/ZIP Code" />
+            <TextInput style={styles.input} value={form.address_country} onChangeText={t => setForm((f: typeof form) => ({ ...f, address_country: t }))} placeholder="Country (e.g., CA, US)" />
             <View style={styles.switchContainer}>
               <Text style={styles.switchLabel}>Is Business Customer</Text>
               <Switch value={form.is_business} onValueChange={v => setForm((f: typeof form) => ({ ...f, is_business: v }))} />
@@ -2917,6 +2919,13 @@ export default function App() {
               value={customerForm.address_postal_code}
               onChangeText={(text) => setCustomerForm({ ...customerForm, address_postal_code: text })}
               placeholder="Postal/ZIP Code"
+            />
+
+            <TextInput
+              style={styles.input}
+              value={customerForm.address_country}
+              onChangeText={(text) => setCustomerForm({ ...customerForm, address_country: text })}
+              placeholder="Country (e.g., CA for Canada, US for USA)"
             />
 
             <Text style={styles.sectionTitle}>Business Customer</Text>
