@@ -1,47 +1,44 @@
-# Test delivery request with better error handling
-Write-Host "Testing delivery request..." -ForegroundColor Green
+# Test delivery request with exact mobile app data
+Write-Host "Testing delivery request endpoint..." -ForegroundColor Green
 
-# First get a token for an existing customer
-$loginData = @{
-    username = "john.smith"
-    password = "testpass123"
-} | ConvertTo-Json
-
-$headers = @{
-    'Content-Type' = 'application/json'
-}
-
-try {
-    $loginResponse = Invoke-RestMethod -Uri "http://localhost:8000/api/token/" -Method Post -Body $loginData -Headers $headers
+# Read token
+if (Test-Path 'last-token.txt') {
+    $token = Get-Content 'last-token.txt' -Raw
+    $token = $token.Trim()
     
-    $authHeaders = @{
-        'Authorization' = "Bearer $($loginResponse.access)"
-        'Content-Type' = 'application/json'
+    Write-Host "Using token: $($token.Substring(0,20))..." -ForegroundColor Yellow
+    
+    # Test data exactly as sent by mobile app
+    $headers = @{
+        'Content-Type'  = 'application/json'
+        'Authorization' = "Bearer $token"
     }
     
-    $deliveryData = @{
-        dropoff_location = "456 Destination Ave, Target City"
-        same_pickup_as_customer = $true
-        item_description = "Test Package"
-        delivery_date = "2025-09-24"
-        delivery_time = "14:00:00"
+    $body = @{
+        'dropoff_location'        = 'Brent'
+        'item_description'        = 'Chili dog'
+        'pickup_location'         = ''
+        'same_pickup_as_customer' = $true
+        'use_preferred_pickup'    = $false
     } | ConvertTo-Json
     
-    Write-Host "Delivery data:" -ForegroundColor Yellow
-    Write-Host $deliveryData -ForegroundColor Gray
+    Write-Host "Request body: $body" -ForegroundColor Gray
     
-    $deliveryResponse = Invoke-RestMethod -Uri "http://localhost:8000/api/deliveries/request_delivery/" -Method Post -Body $deliveryData -Headers $authHeaders
-    
-    Write-Host "✓ Delivery request successful!" -ForegroundColor Green
-    $deliveryResponse | ConvertTo-Json -Depth 3
-    
-} catch {
-    Write-Host "Error details:" -ForegroundColor Red
-    Write-Host $_.Exception.Message -ForegroundColor Red
-    
-    # Try to get more error details
-    if ($_.ErrorDetails) {
-        Write-Host "Error Details:" -ForegroundColor Yellow
-        Write-Host $_.ErrorDetails.Message -ForegroundColor Yellow
+    try {
+        $response = Invoke-RestMethod -Uri 'http://192.168.1.77:8081/api/deliveries/request_delivery/' -Method POST -Headers $headers -Body $body
+        Write-Host "SUCCESS!" -ForegroundColor Green
+        Write-Host "Response:" -ForegroundColor Yellow
+        $response | ConvertTo-Json -Depth 3
     }
+    catch {
+        Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+        if ($_.ErrorDetails) {
+            Write-Host "Error Details:" -ForegroundColor Yellow
+            Write-Host $_.ErrorDetails.Message -ForegroundColor Yellow
+        }
+    }
+}
+else {
+    Write-Host "No token found in last-token.txt" -ForegroundColor Red
+    Write-Host "Run .\get-token-save.ps1 first" -ForegroundColor Yellow
 }

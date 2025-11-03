@@ -129,13 +129,13 @@ class Delivery(models.Model):
     def save(self, *args, **kwargs):
         # Auto-set pickup location based on customer preferences
         if self.same_pickup_as_customer:
-            self.pickup_location = self.customer.address
+            self.pickup_location = self.customer.full_address
         elif self.use_preferred_pickup and self.customer.preferred_pickup_address:
             self.pickup_location = self.customer.preferred_pickup_address
             
         # Auto-set dropoff location based on customer preferences
         if self.same_dropoff_as_customer:
-            self.dropoff_location = self.customer.address
+            self.dropoff_location = self.customer.full_address
             
         super().save(*args, **kwargs)
 
