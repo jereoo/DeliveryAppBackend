@@ -676,11 +676,18 @@ export default function App() {
       setLocalLoading(true);
       setError(null);
       try {
+        console.log('🚚 Delivery Request Debug Info:');
+        console.log(`API Base: ${API_BASE}`);
+        console.log(`Auth Token: ${authToken ? authToken.substring(0, 20) + '...' : 'None'}`);
+        console.log(`Form Data:`, form);
+        
         const response = await makeAuthenticatedRequest('/api/deliveries/request_delivery/', {
           method: 'POST',
           body: JSON.stringify(form)
         });
 
+        console.log(`Response Status: ${response.status}`);
+        
         if (response.ok) {
           Alert.alert('Success', 'Delivery requested successfully!');
           setForm({
@@ -689,11 +696,13 @@ export default function App() {
           });
           onBack();
         } else {
-          const errorData = await response.json();
-          setError(JSON.stringify(errorData));
+          const errorData = await response.text();
+          console.log(`Error Response:`, errorData);
+          setError(`Request failed (${response.status}): ${errorData}`);
         }
       } catch (error) {
-        setError('Network error during delivery request');
+        console.log(`Network Error:`, error);
+        setError(`Network error during delivery request: ${error.message || error}`);
       }
       setLocalLoading(false);
     };
@@ -1746,6 +1755,9 @@ export default function App() {
       ...((typeof authToken === 'string' && authToken) ? { 'Authorization': `Bearer ${authToken}` } : {}),
       ...(options.headers || {})
     };
+
+    console.log(`🔗 API Request: ${API_BASE}${endpoint}`);
+    console.log(`🔑 Auth Header: ${headers.Authorization ? 'Present' : 'Missing'}`);
 
     return fetch(`${API_BASE}${endpoint}`, {
       ...options,
