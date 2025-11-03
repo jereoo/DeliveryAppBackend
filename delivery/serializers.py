@@ -93,20 +93,22 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
         if postal_code and country:
             postal_code = postal_code.strip().upper()
             
-            if country == 'CA':
-                # Canadian postal code format: A1A 1A1
-                canadian_pattern = r'^[A-Z]\d[A-Z]\s?\d[A-Z]\d$'
+            if country == 'CA' or country == 'Canada':
+                # Canadian postal code format: A1A 1A1 or A1A1A1
+                # More flexible pattern to handle both formats
+                canadian_pattern = r'^[A-Z]\d[A-Z]\s*\d[A-Z]\d$'
                 if not re.match(canadian_pattern, postal_code):
                     raise serializers.ValidationError({
-                        'address_postal_code': 'Canadian postal codes must be in the format A1A 1A1 (e.g., K1A 0A6)'
+                        'address_postal_code': 'Canadian postal codes must be in the format A1A 1A1 or A1A1A1 (e.g., K1A 0A6)'
                     })
-            elif country == 'US':
+            elif country == 'US' or country == 'USA' or country == 'United States':
                 # US ZIP code format: 12345 or 12345-1234
                 us_pattern = r'^\d{5}(-\d{4})?$'
                 if not re.match(us_pattern, postal_code):
                     raise serializers.ValidationError({
                         'address_postal_code': 'US ZIP codes must be in the format 12345 or 12345-1234'
                     })
+            # Note: For other countries, we'll be more lenient and allow any format
         
         return data
     
@@ -119,7 +121,8 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
             email=user_data['email'],
             password=user_data['password'],
             first_name=user_data.get('first_name', ''),
-            last_name=user_data.get('last_name', '')
+            last_name=user_data.get('last_name', ''),
+            is_active=True  # Fix: Ensure user account is active for login
         )
         
         # Create Customer profile (skip model validation since we already validated)
