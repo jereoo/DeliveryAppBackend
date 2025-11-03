@@ -278,1302 +278,60 @@ export default function App() {
   }
 
   function AdminVehiclesScreen({ onBack }: { onBack: () => void }) {
-    const [mode, setMode] = useState<'list' | 'create' | 'edit' | 'detail'>('list');
-    const [selected, setSelected] = useState<any>(null);
-    const [form, setForm] = useState<any>({
-      license_plate: '', make: '', model: '', year: new Date().getFullYear(),
-      vin: '', capacity: 1000, active: true
-    });
-    const [error, setError] = useState<string | null>(null);
-    const [localLoading, setLocalLoading] = useState(false);
-
-    // Handlers
-    const handleSelect = (vehicle: any) => {
-      setSelected(vehicle);
-      setMode('detail');
-    };
-    const handleEdit = (vehicle: any) => {
-      setSelected(vehicle);
-      setForm({
-        license_plate: vehicle.license_plate || '',
-        make: vehicle.make || '',
-        model: vehicle.model || '',
-        year: vehicle.year || new Date().getFullYear(),
-        vin: vehicle.vin || '',
-        capacity: vehicle.capacity || 1000,
-        active: vehicle.active !== undefined ? vehicle.active : true
-      });
-      setMode('edit');
-    };
-    const handleDelete = async (vehicle: any) => {
-      Alert.alert('Confirm Delete', 'Are you sure you want to delete this vehicle?', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete', style: 'destructive', onPress: async () => {
-            setLocalLoading(true);
-            try {
-              await deleteVehicle(vehicle.id);
-              setMode('list');
-              setSelected(null);
-              await loadVehicles();
-            } catch (e) {
-              setError('Failed to delete vehicle');
-            }
-            setLocalLoading(false);
-          }
-        }
-      ]);
-    };
-    const handleCreate = async () => {
-      setLocalLoading(true);
-      setError(null);
-      try {
-        await createVehicle(form);
-        setMode('list');
-        setForm({
-          license_plate: '', make: '', model: '', year: new Date().getFullYear(),
-          vin: '', capacity: 1000, active: true
-        });
-        await loadVehicles();
-      } catch (e) {
-        setError('Failed to create vehicle');
-      }
-      setLocalLoading(false);
-    };
-    const handleUpdate = async () => {
-      if (!selected) return;
-      setLocalLoading(true);
-      setError(null);
-      try {
-        await updateVehicle(selected.id, form);
-        setMode('list');
-        setSelected(null);
-        await loadVehicles();
-      } catch (e) {
-        setError('Failed to update vehicle');
-      }
-      setLocalLoading(false);
-    };
-
-    // Render
-    if (mode === 'list') {
-      return (
-        <ScrollView style={styles.container}>
-          <View style={styles.content}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-              <Button title="← Back" onPress={onBack} />
-              <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>🚛 Admin Vehicles</Text>
-            </View>
-            {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
-            <View style={styles.buttonContainer}>
-              <Button title="Add Vehicle" onPress={() => { setMode('create'); setForm({ license_plate: '', make: '', model: '', year: new Date().getFullYear(), vin: '', capacity: 1000, active: true }); }} />
-            </View>
-            {localLoading ? <ActivityIndicator /> : vehicles.length === 0 ? (
-              <Text style={styles.emptyText}>No vehicles found.</Text>
-            ) : (
-              vehicles.map((vehicle: any) => (
-                <View key={vehicle.id} style={styles.itemContainer}>
-                  <Text style={styles.itemTitle}>{vehicle.make} {vehicle.model} ({vehicle.license_plate})</Text>
-                  <Text>Year: {vehicle.year}</Text>
-                  <Text>Capacity: {vehicle.capacity} kg</Text>
-                  <Text>Status: {vehicle.active ? 'Active' : 'Inactive'}</Text>
-                  <View style={{ flexDirection: 'row', marginTop: 8 }}>
-                    <View style={{ flex: 1, marginRight: 4 }}>
-                      <Button title="View" onPress={() => handleSelect(vehicle)} />
-                    </View>
-                    <View style={{ flex: 1, marginRight: 4 }}>
-                      <Button title="Edit" onPress={() => handleEdit(vehicle)} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Button title="Delete" color="#d9534f" onPress={() => handleDelete(vehicle)} />
-                    </View>
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
-        </ScrollView>
-      );
-    }
-    if (mode === 'create' || mode === 'edit') {
-      return (
-        <ScrollView style={styles.container}>
-          <View style={styles.content}>
-            <Text style={styles.title}>{mode === 'create' ? 'Add Vehicle' : 'Edit Vehicle'}</Text>
-            {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
-            <TextInput style={styles.input} value={form.license_plate} onChangeText={t => setForm((f: typeof form) => ({ ...f, license_plate: t.toUpperCase() }))} placeholder="License Plate *" autoCapitalize="characters" />
-            <TextInput style={styles.input} value={form.make} onChangeText={t => setForm((f: typeof form) => ({ ...f, make: t }))} placeholder="Make (e.g., Ford, Toyota) *" />
-            <TextInput style={styles.input} value={form.model} onChangeText={t => setForm((f: typeof form) => ({ ...f, model: t }))} placeholder="Model (e.g., Transit, Hiace) *" />
-            <TextInput style={styles.input} value={form.year ? form.year.toString() : ''} onChangeText={t => { const year = parseInt(t) || new Date().getFullYear(); if (year >= 1900 && year <= 2100) setForm((f: typeof form) => ({ ...f, year })); }} placeholder="Year *" keyboardType="numeric" maxLength={4} />
-            <TextInput style={styles.input} value={form.vin} onChangeText={t => setForm((f: typeof form) => ({ ...f, vin: t.toUpperCase() }))} placeholder="VIN (17 characters) *" autoCapitalize="characters" maxLength={17} />
-            <TextInput style={styles.input} value={form.capacity.toString()} onChangeText={t => { const capacity = parseInt(t) || 1000; if (capacity >= 1 && capacity <= 50000) setForm((f: typeof form) => ({ ...f, capacity })); }} placeholder="Capacity (kg) *" keyboardType="numeric" />
-            <View style={styles.switchContainer}>
-              <Text style={styles.switchLabel}>Active Vehicle</Text>
-              <Switch value={form.active} onValueChange={v => setForm((f: typeof form) => ({ ...f, active: v }))} />
-            </View>
-            <View style={styles.buttonContainer}>
-              <Button title={mode === 'create' ? 'Create' : 'Update'} onPress={mode === 'create' ? handleCreate : handleUpdate} disabled={localLoading} />
-            </View>
-            <View style={styles.buttonContainer}>
-              <Button title="Cancel" onPress={() => { setMode('list'); setSelected(null); }} />
-            </View>
-          </View>
-        </ScrollView>
-      );
-    }
-    if (mode === 'detail' && selected) {
-      return (
-        <ScrollView style={styles.container}>
-          <View style={styles.content}>
-            <Text style={styles.title}>Vehicle Detail</Text>
-            <Text style={styles.itemTitle}>{selected.make} {selected.model}</Text>
-            <Text>License Plate: {selected.license_plate}</Text>
-            <Text>Year: {selected.year}</Text>
-            <Text>VIN: {selected.vin}</Text>
-            <Text>Capacity: {selected.capacity} kg</Text>
-            <Text>Status: {selected.active ? 'Active' : 'Inactive'}</Text>
-            <View style={styles.buttonContainer}>
-              <Button title="Edit" onPress={() => handleEdit(selected)} />
-            </View>
-            <View style={styles.buttonContainer}>
-              <Button title="Delete" color="#d9534f" onPress={() => handleDelete(selected)} />
-            </View>
-            <View style={styles.buttonContainer}>
-              <Button title="Back to List" onPress={() => { setMode('list'); setSelected(null); }} />
-            </View>
-          </View>
-        </ScrollView>
-      );
-    }
-    // fallback
     return (
-      <View style={styles.container}><Text>Invalid state</Text></View>
+      <View style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.title}>🚛 Admin Vehicles</Text>
+          <Text style={styles.infoText}>This screen is not yet implemented.</Text>
+          <View style={styles.buttonContainer}>
+            <Button title="Back" onPress={onBack} />
+          </View>
+        </View>
+      </View>
     );
   }
 
   function AdminDeliveriesScreen({ onBack }: { onBack: () => void }) {
-    const [mode, setMode] = useState<'list' | 'create' | 'edit' | 'detail'>('list');
-    const [selected, setSelected] = useState<any>(null);
-    const [form, setForm] = useState<any>({
-      customer_name: '', customer_address: '', pickup_location: '', dropoff_location: '',
-      item_description: '', status: 'Pending', same_pickup_as_customer: false, use_preferred_pickup: false
-    });
-    const [error, setError] = useState<string | null>(null);
-    const [localLoading, setLocalLoading] = useState(false);
-
-    // Handlers
-    const handleSelect = (delivery: any) => {
-      setSelected(delivery);
-      setMode('detail');
-    };
-    const handleEdit = (delivery: any) => {
-      setSelected(delivery);
-      setForm({
-        customer_name: delivery.customer_name || '',
-        customer_address: delivery.customer_address || '',
-        pickup_location: delivery.pickup_location || '',
-        dropoff_location: delivery.dropoff_location || '',
-        item_description: delivery.item_description || '',
-        status: delivery.status || 'Pending',
-        same_pickup_as_customer: delivery.same_pickup_as_customer || false,
-        use_preferred_pickup: delivery.use_preferred_pickup || false
-      });
-      setMode('edit');
-    };
-    const handleDelete = async (delivery: any) => {
-      Alert.alert('Confirm Delete', 'Are you sure you want to delete this delivery?', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete', style: 'destructive', onPress: async () => {
-            setLocalLoading(true);
-            try {
-              await deleteDelivery(delivery.id);
-              setMode('list');
-              setSelected(null);
-              await loadDeliveries();
-            } catch (e) {
-              setError('Failed to delete delivery');
-            }
-            setLocalLoading(false);
-          }
-        }
-      ]);
-    };
-    const handleCreate = async () => {
-      setLocalLoading(true);
-      setError(null);
-      try {
-        await createDelivery(form);
-        setMode('list');
-        setForm({
-          customer_name: '', customer_address: '', pickup_location: '', dropoff_location: '',
-          item_description: '', status: 'Pending', same_pickup_as_customer: false, use_preferred_pickup: false
-        });
-        await loadDeliveries();
-      } catch (e) {
-        setError('Failed to create delivery');
-      }
-      setLocalLoading(false);
-    };
-    const handleUpdate = async () => {
-      if (!selected) return;
-      setLocalLoading(true);
-      setError(null);
-      try {
-        await updateDelivery(selected.id, form);
-        setMode('list');
-        setSelected(null);
-        await loadDeliveries();
-      } catch (e) {
-        setError('Failed to update delivery');
-      }
-      setLocalLoading(false);
-    };
-
-    // Render
-    if (mode === 'list') {
-      return (
-        <ScrollView style={styles.container}>
-          <View style={styles.content}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-              <Button title="← Back" onPress={onBack} />
-              <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>📦 Admin Deliveries</Text>
-            </View>
-            {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
-            <View style={styles.buttonContainer}>
-              <Button title="Add Delivery" onPress={() => { setMode('create'); setForm({ customer_name: '', customer_address: '', pickup_location: '', dropoff_location: '', item_description: '', status: 'Pending', same_pickup_as_customer: false, use_preferred_pickup: false }); }} />
-            </View>
-            {localLoading ? <ActivityIndicator /> : deliveries.length === 0 ? (
-              <Text style={styles.emptyText}>No deliveries found.</Text>
-            ) : (
-              deliveries.map((delivery: any) => (
-                <View key={delivery.id} style={styles.itemContainer}>
-                  <Text style={styles.itemTitle}>{delivery.customer_name}</Text>
-                  <Text>From: {delivery.pickup_location}</Text>
-                  <Text>To: {delivery.dropoff_location}</Text>
-                  <Text>Status: {delivery.status}</Text>
-                  <View style={{ flexDirection: 'row', marginTop: 8 }}>
-                    <View style={{ flex: 1, marginRight: 4 }}>
-                      <Button title="View" onPress={() => handleSelect(delivery)} />
-                    </View>
-                    <View style={{ flex: 1, marginRight: 4 }}>
-                      <Button title="Edit" onPress={() => handleEdit(delivery)} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Button title="Delete" color="#d9534f" onPress={() => handleDelete(delivery)} />
-                    </View>
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
-        </ScrollView>
-      );
-    }
-    if (mode === 'create' || mode === 'edit') {
-      const statusOptions = ['Pending', 'En Route', 'Completed', 'Cancelled'];
-      return (
-        <ScrollView style={styles.container}>
-          <View style={styles.content}>
-            <Text style={styles.title}>{mode === 'create' ? 'Add Delivery' : 'Edit Delivery'}</Text>
-            {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
-            <TextInput style={styles.input} value={form.customer_name} onChangeText={t => setForm((f: typeof form) => ({ ...f, customer_name: t }))} placeholder="Customer Name *" />
-            <TextInput style={styles.input} value={form.customer_address} onChangeText={t => setForm((f: typeof form) => ({ ...f, customer_address: t }))} placeholder="Customer Address *" />
-            <TextInput style={styles.input} value={form.pickup_location} onChangeText={t => setForm((f: typeof form) => ({ ...f, pickup_location: t }))} placeholder="Pickup Location *" />
-            <TextInput style={styles.input} value={form.dropoff_location} onChangeText={t => setForm((f: typeof form) => ({ ...f, dropoff_location: t }))} placeholder="Dropoff Location *" />
-            <TextInput style={[styles.input, styles.multilineInput]} value={form.item_description} onChangeText={t => setForm((f: typeof form) => ({ ...f, item_description: t }))} placeholder="Item Description" multiline numberOfLines={3} />
-            <Text style={styles.sectionTitle}>Status</Text>
-            {statusOptions.map(status => (
-              <View key={status} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
-                <Text style={{ flex: 1 }}>{status}</Text>
-                <Switch value={form.status === status} onValueChange={() => setForm((f: typeof form) => ({ ...f, status }))} />
-              </View>
-            ))}
-            <View style={styles.switchContainer}>
-              <Text style={styles.switchLabel}>Same pickup as customer address</Text>
-              <Switch value={form.same_pickup_as_customer} onValueChange={v => setForm((f: typeof form) => ({ ...f, same_pickup_as_customer: v }))} />
-            </View>
-            <View style={styles.switchContainer}>
-              <Text style={styles.switchLabel}>Use preferred pickup address</Text>
-              <Switch value={form.use_preferred_pickup} onValueChange={v => setForm((f: typeof form) => ({ ...f, use_preferred_pickup: v }))} />
-            </View>
-            <View style={styles.buttonContainer}>
-              <Button title={mode === 'create' ? 'Create' : 'Update'} onPress={mode === 'create' ? handleCreate : handleUpdate} disabled={localLoading} />
-            </View>
-            <View style={styles.buttonContainer}>
-              <Button title="Cancel" onPress={() => { setMode('list'); setSelected(null); }} />
-            </View>
-          </View>
-        </ScrollView>
-      );
-    }
-    if (mode === 'detail' && selected) {
-      return (
-        <ScrollView style={styles.container}>
-          <View style={styles.content}>
-            <Text style={styles.title}>Delivery Detail</Text>
-            <Text style={styles.itemTitle}>{selected.customer_name}</Text>
-            <Text>Customer Address: {selected.customer_address}</Text>
-            <Text>Pickup: {selected.pickup_location}</Text>
-            <Text>Dropoff: {selected.dropoff_location}</Text>
-            <Text>Item: {selected.item_description}</Text>
-            <Text>Status: {selected.status}</Text>
-            <Text>Created: {selected.created_at ? new Date(selected.created_at).toLocaleDateString() : 'N/A'}</Text>
-            <View style={styles.buttonContainer}>
-              <Button title="Edit" onPress={() => handleEdit(selected)} />
-            </View>
-            <View style={styles.buttonContainer}>
-              <Button title="Delete" color="#d9534f" onPress={() => handleDelete(selected)} />
-            </View>
-            <View style={styles.buttonContainer}>
-              <Button title="Back to List" onPress={() => { setMode('list'); setSelected(null); }} />
-            </View>
-          </View>
-        </ScrollView>
-      );
-    }
-    // fallback
     return (
-      <View style={styles.container}><Text>Invalid state</Text></View>
+      <View style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.title}>📦 Admin Deliveries</Text>
+          <Text style={styles.infoText}>This screen is not yet implemented.</Text>
+          <View style={styles.buttonContainer}>
+            <Button title="Back" onPress={onBack} />
+          </View>
+        </View>
+      </View>
     );
   }
 
   function DeliveryRequestScreen({ onBack }: { onBack: () => void }) {
-    const [form, setForm] = useState({
-      pickup_location: '',
-      dropoff_location: '',
-      item_description: '',
-      same_pickup_as_customer: false,
-      use_preferred_pickup: false
-    });
-    const [error, setError] = useState<string | null>(null);
-    const [localLoading, setLocalLoading] = useState(false);
-
-    const handleSubmit = async () => {
-      if (!form.dropoff_location) {
-        setError('Please provide dropoff location');
-        return;
-      }
-
-      setLocalLoading(true);
-      setError(null);
-      try {
-        const response = await makeAuthenticatedRequest('/api/deliveries/request_delivery/', {
-          method: 'POST',
-          body: JSON.stringify(form)
-        });
-
-        if (response.ok) {
-          Alert.alert('Success', 'Delivery requested successfully!');
-          setForm({
-            pickup_location: '', dropoff_location: '', item_description: '',
-            same_pickup_as_customer: false, use_preferred_pickup: false
-          });
-          onBack();
-        } else {
-          const errorData = await response.json();
-          setError(JSON.stringify(errorData));
-        }
-      } catch (error) {
-        setError('Network error during delivery request');
-      }
-      setLocalLoading(false);
-    };
-
     return (
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
-      >
-        <ScrollView
-          style={styles.container}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.content}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-              <Button title="← Back" onPress={onBack} />
-              <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>📋 Request Delivery</Text>
-            </View>
-
-            {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
-
-            <Text style={styles.sectionTitle}>Pickup & Delivery Information</Text>
-
-            <View style={styles.switchContainer}>
-              <Text style={styles.switchLabel}>Use my address as pickup</Text>
-              <Switch
-                value={form.same_pickup_as_customer}
-                onValueChange={(value) => setForm({ ...form, same_pickup_as_customer: value })}
-              />
-            </View>
-
-            <View style={styles.switchContainer}>
-              <Text style={styles.switchLabel}>Use preferred pickup address</Text>
-              <Switch
-                value={form.use_preferred_pickup}
-                onValueChange={(value) => setForm({ ...form, use_preferred_pickup: value })}
-              />
-            </View>
-
-            {!form.same_pickup_as_customer && !form.use_preferred_pickup && (
-              <TextInput
-                style={styles.input}
-                value={form.pickup_location}
-                onChangeText={(text) => setForm({ ...form, pickup_location: text })}
-                placeholder="Pickup Location"
-              />
-            )}
-
-            <TextInput
-              style={styles.input}
-              value={form.dropoff_location}
-              onChangeText={(text) => setForm({ ...form, dropoff_location: text })}
-              placeholder="Dropoff Location *"
-            />
-
-            <TextInput
-              style={[styles.input, styles.multilineInput]}
-              value={form.item_description}
-              onChangeText={(text) => setForm({ ...form, item_description: text })}
-              placeholder="Item Description (Optional)"
-              multiline
-              numberOfLines={3}
-            />
-
-            <View style={styles.buttonContainer}>
-              <Button title="Request Delivery" onPress={handleSubmit} disabled={localLoading} />
-            </View>
-
-            <View style={styles.buttonContainer}>
-              <Button title="Cancel" onPress={onBack} />
-            </View>
-
-            {/* Extra padding to ensure buttons are visible above keyboard */}
-            <View style={styles.keyboardPadding} />
+      <View style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.title}>📋 Delivery Request</Text>
+          <Text style={styles.infoText}>This screen is not yet implemented.</Text>
+          <View style={styles.buttonContainer}>
+            <Button title="Back" onPress={onBack} />
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </View>
+      </View>
     );
   }
 
   function MyDeliveriesScreen({ onBack }: { onBack: () => void }) {
-    const [selectedDelivery, setSelectedDelivery] = useState<any>(null);
-    const [mode, setMode] = useState<'list' | 'detail'>('list');
-    const [error, setError] = useState<string | null>(null);
-    const [localLoading, setLocalLoading] = useState(false);
-
-    const handleSelect = (delivery: any) => {
-      setSelectedDelivery(delivery);
-      setMode('detail');
-    };
-
-    const refreshDeliveries = async () => {
-      setLocalLoading(true);
-      try {
-        await loadMyDeliveries();
-      } catch (e) {
-        setError('Failed to load deliveries');
-      }
-      setLocalLoading(false);
-    };
-
-    useEffect(() => {
-      refreshDeliveries();
-    }, []);
-
-    if (mode === 'detail' && selectedDelivery) {
-      return (
-        <ScrollView style={styles.container}>
-          <View style={styles.content}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-              <Button title="← Back" onPress={() => setMode('list')} />
-              <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>Delivery Detail</Text>
-            </View>
-
-            <Text style={styles.itemTitle}>Delivery #{selectedDelivery.id}</Text>
-            <Text>Pickup: {selectedDelivery.pickup_location}</Text>
-            <Text>Dropoff: {selectedDelivery.dropoff_location}</Text>
-            <Text>Item: {selectedDelivery.item_description || 'No description'}</Text>
-            <Text>Status: {selectedDelivery.status}</Text>
-            <Text>Requested: {selectedDelivery.created_at ? new Date(selectedDelivery.created_at).toLocaleDateString() : 'N/A'}</Text>
-
-            {selectedDelivery.driver_name && (
-              <View style={{ marginTop: 10 }}>
-                <Text style={styles.sectionTitle}>Driver Information</Text>
-                <Text>Driver: {selectedDelivery.driver_name}</Text>
-                {selectedDelivery.driver_phone && <Text>Phone: {selectedDelivery.driver_phone}</Text>}
-              </View>
-            )}
-
-            {selectedDelivery.vehicle_info && (
-              <View style={{ marginTop: 10 }}>
-                <Text style={styles.sectionTitle}>Vehicle Information</Text>
-                <Text>Vehicle: {selectedDelivery.vehicle_info}</Text>
-              </View>
-            )}
-
-            <View style={styles.buttonContainer}>
-              <Button title="Back to List" onPress={() => { setMode('list'); setSelectedDelivery(null); }} />
-            </View>
-          </View>
-        </ScrollView>
-      );
-    }
-
     return (
-      <ScrollView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.content}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-            <Button title="← Back" onPress={onBack} />
-            <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>📋 My Deliveries</Text>
-            <Button title="🔄" onPress={refreshDeliveries} />
-          </View>
-
-          {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
-
-          {localLoading ? (
-            <ActivityIndicator size="large" color="#0066CC" />
-          ) : deliveries.length === 0 ? (
-            <View style={{ alignItems: 'center', marginTop: 50 }}>
-              <Text style={styles.emptyText}>No deliveries found.</Text>
-              <Text style={styles.infoText}>Request your first delivery to get started!</Text>
-            </View>
-          ) : (
-            deliveries.map((delivery: any) => (
-              <View key={delivery.id} style={styles.itemContainer}>
-                <Text style={styles.itemTitle}>Delivery #{delivery.id}</Text>
-                <Text>From: {delivery.pickup_location}</Text>
-                <Text>To: {delivery.dropoff_location}</Text>
-                <Text>Status: <Text style={{
-                  fontWeight: 'bold',
-                  color: delivery.status === 'Completed' ? 'green' :
-                    delivery.status === 'Cancelled' ? 'red' :
-                      delivery.status === 'En Route' ? 'orange' : 'blue'
-                }}>{delivery.status}</Text></Text>
-                <Text>Requested: {delivery.created_at ? new Date(delivery.created_at).toLocaleDateString() : 'N/A'}</Text>
-
-                <View style={{ marginTop: 8 }}>
-                  <Button title="View Details" onPress={() => handleSelect(delivery)} />
-                </View>
-              </View>
-            ))
-          )}
-        </View>
-      </ScrollView>
-    );
-  }
-
-  function AdminDriversScreen({ onBack }: { onBack: () => void }) {
-    const [selectedDriver, setSelectedDriver] = useState<any>(null);
-    const [mode, setMode] = useState<'list' | 'create' | 'edit' | 'detail'>('list');
-    const [formData, setFormData] = useState({
-      name: '',
-      phone_number: '',
-      license_number: '',
-      active: true
-    });
-    const [error, setError] = useState<string | null>(null);
-    const [localLoading, setLocalLoading] = useState(false);
-
-    const resetForm = () => {
-      setFormData({
-        name: '',
-        phone_number: '',
-        license_number: '',
-        active: true
-      });
-      setError(null);
-    };
-
-    const handleCreate = async () => {
-      if (!formData.name.trim() || !formData.license_number.trim()) {
-        setError('Name and license number are required');
-        return;
-      }
-
-      setLocalLoading(true);
-      try {
-        await createDriver(formData);
-        await loadDrivers();
-        setMode('list');
-        resetForm();
-        Alert.alert('Success', 'Driver created successfully!');
-      } catch (e) {
-        setError('Failed to create driver: ' + (e instanceof Error ? e.message : 'Unknown error'));
-      }
-      setLocalLoading(false);
-    };
-
-    const handleUpdate = async () => {
-      if (!selectedDriver || !formData.name.trim() || !formData.license_number.trim()) {
-        setError('Name and license number are required');
-        return;
-      }
-
-      setLocalLoading(true);
-      try {
-        await updateDriver(selectedDriver.id, formData);
-        await loadDrivers();
-        setMode('list');
-        resetForm();
-        Alert.alert('Success', 'Driver updated successfully!');
-      } catch (e) {
-        setError('Failed to update driver: ' + (e instanceof Error ? e.message : 'Unknown error'));
-      }
-      setLocalLoading(false);
-    };
-
-    const handleDelete = (driver: any) => {
-      Alert.alert(
-        'Confirm Delete',
-        `Are you sure you want to delete driver "${driver.name}"?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: async () => {
-              setLocalLoading(true);
-              try {
-                await deleteDriver(driver.id);
-                await loadDrivers();
-                Alert.alert('Success', 'Driver deleted successfully!');
-              } catch (e) {
-                setError('Failed to delete driver: ' + (e instanceof Error ? e.message : 'Unknown error'));
-              }
-              setLocalLoading(false);
-            }
-          }
-        ]
-      );
-    };
-
-    const handleEdit = (driver: any) => {
-      setSelectedDriver(driver);
-      setFormData({
-        name: driver.name || '',
-        phone_number: driver.phone_number || '',
-        license_number: driver.license_number || '',
-        active: driver.active ?? true
-      });
-      setMode('edit');
-    };
-
-    const handleDetail = (driver: any) => {
-      setSelectedDriver(driver);
-      setMode('detail');
-    };
-
-    const refreshDrivers = async () => {
-      setLocalLoading(true);
-      try {
-        await loadDrivers();
-      } catch (e) {
-        setError('Failed to load drivers');
-      }
-      setLocalLoading(false);
-    };
-
-    useEffect(() => {
-      refreshDrivers();
-    }, []);
-
-    if (mode === 'create' || mode === 'edit') {
-      return (
-        <ScrollView style={styles.container}>
-          <View style={styles.content}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-              <Button title="← Cancel" onPress={() => { setMode('list'); resetForm(); }} />
-              <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>
-                {mode === 'create' ? 'Add Driver' : 'Edit Driver'}
-              </Text>
-            </View>
-
-            {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
-
-            <Text style={styles.label}>Name *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter driver name"
-              value={formData.name}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
-            />
-
-            <Text style={styles.label}>Phone Number</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter phone number"
-              value={formData.phone_number}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, phone_number: text }))}
-              keyboardType="phone-pad"
-            />
-
-            <Text style={styles.label}>License Number *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter license number"
-              value={formData.license_number}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, license_number: text }))}
-            />
-
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
-              <Text style={styles.label}>Active: </Text>
-              <Button
-                title={formData.active ? 'Yes' : 'No'}
-                onPress={() => setFormData(prev => ({ ...prev, active: !prev.active }))}
-              />
-            </View>
-
-            <View style={styles.buttonContainer}>
-              {localLoading ? (
-                <ActivityIndicator size="large" color="#0066CC" />
-              ) : (
-                <>
-                  <Button
-                    title={mode === 'create' ? 'Create Driver' : 'Update Driver'}
-                    onPress={mode === 'create' ? handleCreate : handleUpdate}
-                  />
-                  <Button title="Cancel" onPress={() => { setMode('list'); resetForm(); }} />
-                </>
-              )}
-            </View>
-          </View>
-        </ScrollView>
-      );
-    }
-
-    if (mode === 'detail' && selectedDriver) {
-      return (
-        <ScrollView style={styles.container}>
-          <View style={styles.content}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-              <Button title="← Back" onPress={() => setMode('list')} />
-              <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>Driver Detail</Text>
-              <Button title="Edit" onPress={() => handleEdit(selectedDriver)} />
-            </View>
-
-            <Text style={styles.itemTitle}>{selectedDriver.name}</Text>
-            <Text>License: {selectedDriver.license_number}</Text>
-            {selectedDriver.phone_number && <Text>Phone: {selectedDriver.phone_number}</Text>}
-            <Text>Status: {selectedDriver.active ? 'Active' : 'Inactive'}</Text>
-
-            {selectedDriver.current_vehicle && (
-              <View style={{ marginTop: 15 }}>
-                <Text style={styles.sectionTitle}>Current Vehicle</Text>
-                <Text>Plate: {selectedDriver.current_vehicle_plate}</Text>
-                <Text>Vehicle: {selectedDriver.current_vehicle}</Text>
-              </View>
-            )}
-
-            <View style={styles.buttonContainer}>
-              <Button title="Edit Driver" onPress={() => handleEdit(selectedDriver)} />
-              <Button
-                title="Delete Driver"
-                onPress={() => handleDelete(selectedDriver)}
-                color="red"
-              />
-              <Button title="Back to List" onPress={() => { setMode('list'); setSelectedDriver(null); }} />
-            </View>
-          </View>
-        </ScrollView>
-      );
-    }
-
-    return (
-      <ScrollView style={styles.container}>
-        <View style={styles.content}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-            <Button title="← Back" onPress={onBack} />
-            <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>🚚 Drivers</Text>
-            <Button title="+" onPress={() => { resetForm(); setMode('create'); }} />
-          </View>
-
-          <Button title="🔄 Refresh" onPress={refreshDrivers} />
-
-          {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
-
-          {localLoading ? (
-            <ActivityIndicator size="large" color="#0066CC" />
-          ) : drivers.length === 0 ? (
-            <View style={{ alignItems: 'center', marginTop: 50 }}>
-              <Text style={styles.emptyText}>No drivers found.</Text>
-              <Text style={styles.infoText}>Add your first driver to get started!</Text>
-            </View>
-          ) : (
-            drivers.map((driver: any) => (
-              <View key={driver.id} style={styles.itemContainer}>
-                <Text style={styles.itemTitle}>{driver.name}</Text>
-                <Text>License: {driver.license_number}</Text>
-                {driver.phone_number && <Text>Phone: {driver.phone_number}</Text>}
-                <Text>Status: <Text style={{ color: driver.active ? 'green' : 'red' }}>
-                  {driver.active ? 'Active' : 'Inactive'}
-                </Text></Text>
-                {driver.current_vehicle_plate && (
-                  <Text>Vehicle: {driver.current_vehicle_plate}</Text>
-                )}
-
-                <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 8 }}>
-                  <Button title="View" onPress={() => handleDetail(driver)} />
-                  <Button title="Edit" onPress={() => handleEdit(driver)} />
-                  <Button title="Delete" onPress={() => handleDelete(driver)} color="red" />
-                </View>
-              </View>
-            ))
-          )}
-        </View>
-      </ScrollView>
-    );
-  }
-
-  function AdminDriverVehiclesScreen({ onBack }: { onBack: () => void }) {
-    const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
-    const [mode, setMode] = useState<'list' | 'create' | 'edit' | 'detail'>('list');
-    const [formData, setFormData] = useState({
-      driver_id: '',
-      vehicle_id: '',
-      assigned_from: new Date().toISOString().split('T')[0],
-      assigned_to: ''
-    });
-    const [error, setError] = useState<string | null>(null);
-    const [localLoading, setLocalLoading] = useState(false);
-
-    const resetForm = () => {
-      setFormData({
-        driver_id: '',
-        vehicle_id: '',
-        assigned_from: new Date().toISOString().split('T')[0],
-        assigned_to: ''
-      });
-      setError(null);
-    };
-
-    const handleCreate = async () => {
-      if (!formData.driver_id || !formData.vehicle_id || !formData.assigned_from) {
-        setError('Driver, vehicle, and assignment date are required');
-        return;
-      }
-
-      setLocalLoading(true);
-      try {
-        await createDriverVehicle(formData);
-        await loadDriverVehicles();
-        setMode('list');
-        resetForm();
-        Alert.alert('Success', 'Driver-Vehicle assignment created successfully!');
-      } catch (e) {
-        setError('Failed to create assignment: ' + (e instanceof Error ? e.message : 'Unknown error'));
-      }
-      setLocalLoading(false);
-    };
-
-    const handleUpdate = async () => {
-      if (!selectedAssignment || !formData.driver_id || !formData.vehicle_id || !formData.assigned_from) {
-        setError('Driver, vehicle, and assignment date are required');
-        return;
-      }
-
-      setLocalLoading(true);
-      try {
-        await updateDriverVehicle(selectedAssignment.id, formData);
-        await loadDriverVehicles();
-        setMode('list');
-        resetForm();
-        Alert.alert('Success', 'Assignment updated successfully!');
-      } catch (e) {
-        setError('Failed to update assignment: ' + (e instanceof Error ? e.message : 'Unknown error'));
-      }
-      setLocalLoading(false);
-    };
-
-    const handleDelete = (assignment: any) => {
-      Alert.alert(
-        'Confirm Delete',
-        `Are you sure you want to delete this driver-vehicle assignment?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: async () => {
-              setLocalLoading(true);
-              try {
-                await deleteDriverVehicle(assignment.id);
-                await loadDriverVehicles();
-                Alert.alert('Success', 'Assignment deleted successfully!');
-              } catch (e) {
-                setError('Failed to delete assignment: ' + (e instanceof Error ? e.message : 'Unknown error'));
-              }
-              setLocalLoading(false);
-            }
-          }
-        ]
-      );
-    };
-
-    const handleEdit = (assignment: any) => {
-      setSelectedAssignment(assignment);
-      setFormData({
-        driver_id: assignment.driver_id?.toString() || '',
-        vehicle_id: assignment.vehicle_id?.toString() || '',
-        assigned_from: assignment.assigned_from || new Date().toISOString().split('T')[0],
-        assigned_to: assignment.assigned_to || ''
-      });
-      setMode('edit');
-    };
-
-    const handleDetail = (assignment: any) => {
-      setSelectedAssignment(assignment);
-      setMode('detail');
-    };
-
-    const refreshAssignments = async () => {
-      setLocalLoading(true);
-      try {
-        await Promise.all([loadDriverVehicles(), loadDrivers(), loadVehicles()]);
-      } catch (e) {
-        setError('Failed to load data');
-      }
-      setLocalLoading(false);
-    };
-
-    useEffect(() => {
-      refreshAssignments();
-    }, []);
-
-    if (mode === 'create' || mode === 'edit') {
-      return (
-        <ScrollView style={styles.container}>
-          <View style={styles.content}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-              <Button title="← Cancel" onPress={() => { setMode('list'); resetForm(); }} />
-              <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>
-                {mode === 'create' ? 'Assign Vehicle' : 'Edit Assignment'}
-              </Text>
-            </View>
-
-            {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
-
-            <Text style={styles.label}>Driver *</Text>
-            <View style={{ backgroundColor: '#f5f5f5', borderRadius: 5, marginBottom: 10 }}>
-              {drivers.map((driver: any) => (
-                <View key={driver.id} style={{ flexDirection: 'row', alignItems: 'center', padding: 5 }}>
-                  <Button
-                    title={formData.driver_id === driver.id.toString() ? '●' : '○'}
-                    onPress={() => setFormData(prev => ({ ...prev, driver_id: driver.id.toString() }))}
-                  />
-                  <Text style={{ marginLeft: 10 }}>{driver.name} ({driver.license_number})</Text>
-                </View>
-              ))}
-            </View>
-
-            <Text style={styles.label}>Vehicle *</Text>
-            <View style={{ backgroundColor: '#f5f5f5', borderRadius: 5, marginBottom: 10 }}>
-              {vehicles.map((vehicle: any) => (
-                <View key={vehicle.id} style={{ flexDirection: 'row', alignItems: 'center', padding: 5 }}>
-                  <Button
-                    title={formData.vehicle_id === vehicle.id.toString() ? '●' : '○'}
-                    onPress={() => setFormData(prev => ({ ...prev, vehicle_id: vehicle.id.toString() }))}
-                  />
-                  <Text style={{ marginLeft: 10 }}>{vehicle.license_plate} - {vehicle.model}</Text>
-                </View>
-              ))}
-            </View>
-
-            <Text style={styles.label}>Assigned From *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="YYYY-MM-DD"
-              value={formData.assigned_from}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, assigned_from: text }))}
-            />
-
-            <Text style={styles.label}>Assigned To (optional)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="YYYY-MM-DD (leave empty for ongoing)"
-              value={formData.assigned_to}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, assigned_to: text }))}
-            />
-
-            <View style={styles.buttonContainer}>
-              {localLoading ? (
-                <ActivityIndicator size="large" color="#0066CC" />
-              ) : (
-                <>
-                  <Button
-                    title={mode === 'create' ? 'Create Assignment' : 'Update Assignment'}
-                    onPress={mode === 'create' ? handleCreate : handleUpdate}
-                  />
-                  <Button title="Cancel" onPress={() => { setMode('list'); resetForm(); }} />
-                </>
-              )}
-            </View>
-          </View>
-        </ScrollView>
-      );
-    }
-
-    if (mode === 'detail' && selectedAssignment) {
-      return (
-        <ScrollView style={styles.container}>
-          <View style={styles.content}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-              <Button title="← Back" onPress={() => setMode('list')} />
-              <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>Assignment Detail</Text>
-              <Button title="Edit" onPress={() => handleEdit(selectedAssignment)} />
-            </View>
-
-            <Text style={styles.itemTitle}>Driver-Vehicle Assignment</Text>
-            <Text>Driver: {selectedAssignment.driver_name || 'Unknown Driver'}</Text>
-            <Text>Vehicle: {selectedAssignment.vehicle_license_plate || 'Unknown Vehicle'} - {selectedAssignment.vehicle_model || ''}</Text>
-            <Text>Assigned From: {selectedAssignment.assigned_from}</Text>
-            <Text>Assigned To: {selectedAssignment.assigned_to || 'Ongoing'}</Text>
-            <Text>Status: {selectedAssignment.assigned_to ? 'Completed' : 'Active'}</Text>
-
-            <View style={styles.buttonContainer}>
-              <Button title="Edit Assignment" onPress={() => handleEdit(selectedAssignment)} />
-              <Button
-                title="Delete Assignment"
-                onPress={() => handleDelete(selectedAssignment)}
-                color="red"
-              />
-              <Button title="Back to List" onPress={() => { setMode('list'); setSelectedAssignment(null); }} />
-            </View>
-          </View>
-        </ScrollView>
-      );
-    }
-
-    return (
-      <ScrollView style={styles.container}>
-        <View style={styles.content}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-            <Button title="← Back" onPress={onBack} />
-            <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>🔗 Driver-Vehicles</Text>
-            <Button title="+" onPress={() => { resetForm(); setMode('create'); }} />
-          </View>
-
-          <Button title="🔄 Refresh" onPress={refreshAssignments} />
-
-          {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
-
-          {localLoading ? (
-            <ActivityIndicator size="large" color="#0066CC" />
-          ) : driverVehicles.length === 0 ? (
-            <View style={{ alignItems: 'center', marginTop: 50 }}>
-              <Text style={styles.emptyText}>No driver-vehicle assignments found.</Text>
-              <Text style={styles.infoText}>Create your first assignment to get started!</Text>
-            </View>
-          ) : (
-            driverVehicles.map((assignment: any) => (
-              <View key={assignment.id} style={styles.itemContainer}>
-                <Text style={styles.itemTitle}>Assignment #{assignment.id}</Text>
-                <Text>Driver: {assignment.driver_name || 'Unknown Driver'}</Text>
-                <Text>Vehicle: {assignment.vehicle_license_plate || 'Unknown Vehicle'}</Text>
-                <Text>From: {assignment.assigned_from}</Text>
-                <Text>To: {assignment.assigned_to || 'Ongoing'}</Text>
-                <Text>Status: <Text style={{ color: assignment.assigned_to ? 'orange' : 'green' }}>
-                  {assignment.assigned_to ? 'Completed' : 'Active'}
-                </Text></Text>
-
-                <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 8 }}>
-                  <Button title="View" onPress={() => handleDetail(assignment)} />
-                  <Button title="Edit" onPress={() => handleEdit(assignment)} />
-                  <Button title="Delete" onPress={() => handleDelete(assignment)} color="red" />
-                </View>
-              </View>
-            ))
-          )}
-        </View>
-      </ScrollView>
-    );
-  }
-
-  function RegisterAsDriverScreen({ onBack }: { onBack: () => void }) {
-    const [formData, setFormData] = useState({
-      username: '',
-      password: '',
-      confirm_password: '',
-      email: '',
-      first_name: '',
-      last_name: '',
-      phone_number: '',
-      license_number: ''
-    });
-    const [error, setError] = useState<string | null>(null);
-    const [localLoading, setLocalLoading] = useState(false);
-
-    const resetForm = () => {
-      setFormData({
-        username: '',
-        password: '',
-        confirm_password: '',
-        email: '',
-        first_name: '',
-        last_name: '',
-        phone_number: '',
-        license_number: ''
-      });
-      setError(null);
-    };
-
-    const handleRegister = async () => {
-      if (!formData.username.trim() || !formData.password.trim() || !formData.first_name.trim() ||
-        !formData.last_name.trim() || !formData.license_number.trim()) {
-        setError('Username, password, name, and license number are required');
-        return;
-      }
-
-      if (formData.password !== formData.confirm_password) {
-        setError('Passwords do not match');
-        return;
-      }
-
-      setLocalLoading(true);
-      try {
-        // Register as driver (assuming similar endpoint structure as customer)
-        const registrationData = {
-          username: formData.username,
-          password: formData.password,
-          email: formData.email,
-          first_name: formData.first_name,
-          last_name: formData.last_name,
-          phone_number: formData.phone_number,
-          license_number: formData.license_number
-        };
-
-        const response = await fetch(`${API_BASE}/api/drivers/register/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(registrationData)
-        });
-
-        if (!response.ok) {
-          const errorData = await response.text();
-          throw new Error(`Registration failed: ${errorData}`);
-        }
-
-        const result = await response.json();
-
-        Alert.alert(
-          'Registration Successful!',
-          'Your driver account has been created. You can now login.',
-          [
-            { text: 'OK', onPress: () => onBack() }
-          ]
-        );
-
-        resetForm();
-      } catch (e) {
-        setError('Registration failed: ' + (e instanceof Error ? e.message : 'Unknown error'));
-      }
-      setLocalLoading(false);
-    };
-
-    return (
-      <ScrollView style={styles.container}>
-        <View style={styles.content}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-            <Button title="← Back" onPress={onBack} />
-            <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>🚚 Register as Driver</Text>
-          </View>
-
-          {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
-
-          <Text style={styles.sectionTitle}>Account Information</Text>
-
-          <Text style={styles.label}>Username *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter username"
-            value={formData.username}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, username: text }))}
-            autoCapitalize="none"
-          />
-
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter email"
-            value={formData.email}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, email: text }))}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-
-          <Text style={styles.label}>Password *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter password"
-            value={formData.password}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, password: text }))}
-            secureTextEntry
-          />
-
-          <Text style={styles.label}>Confirm Password *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Confirm password"
-            value={formData.confirm_password}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, confirm_password: text }))}
-            secureTextEntry
-          />
-
-          <Text style={styles.sectionTitle}>Driver Information</Text>
-
-          <Text style={styles.label}>First Name *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter first name"
-            value={formData.first_name}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, first_name: text }))}
-          />
-
-          <Text style={styles.label}>Last Name *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter last name"
-            value={formData.last_name}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, last_name: text }))}
-          />
-
-          <Text style={styles.label}>Phone Number</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter phone number"
-            value={formData.phone_number}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, phone_number: text }))}
-            keyboardType="phone-pad"
-          />
-
-          <Text style={styles.label}>License Number *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter driver's license number"
-            value={formData.license_number}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, license_number: text }))}
-          />
-
+          <Text style={styles.title}>📋 My Deliveries</Text>
+          <Text style={styles.infoText}>This screen is not yet implemented.</Text>
           <View style={styles.buttonContainer}>
-            {localLoading ? (
-              <ActivityIndicator size="large" color="#0066CC" />
-            ) : (
-              <>
-                <Button title="Register as Driver" onPress={handleRegister} />
-                <Button title="Cancel" onPress={onBack} />
-              </>
-            )}
+            <Button title="Back" onPress={onBack} />
           </View>
         </View>
-      </ScrollView>
+      </View>
     );
   }
-
   // All constants, useState, useEffect, and helper functions at the top
   // Dynamically detect local IP for API_BASE
   const [API_BASE, setApiBase] = useState('http://localhost:8081');
@@ -1686,36 +444,26 @@ export default function App() {
   // ========================================
 
   const checkBackend = async () => {
-    setBackendStatus('🔄 Checking...');
-
     for (const endpoint of NETWORK_ENDPOINTS) {
       try {
-        console.log(`Testing endpoint: ${endpoint.url}/api/`);
         const response = await fetch(`${endpoint.url}/api/`, {
           method: 'GET',
-          timeout: 5000
-        });
 
-        console.log(`Response from ${endpoint.name}: ${response.status}`);
+        });
 
         if (response.status === 401 || response.status === 200) {
           setApiBase(endpoint.url);
           setCurrentNetwork(endpoint.name);
-          setBackendStatus(`✅ Connected (${endpoint.name})`);
-          Alert.alert('Backend Connected', `Successfully connected to ${endpoint.name} at ${endpoint.url}`);
+          setBackendStatus('✅ Connected');
           return;
         }
       } catch (error) {
-        console.log(`Failed to connect to ${endpoint.name}:`, error);
+        console.log(`Failed to connect to ${endpoint.name}`);
       }
     }
 
     setBackendStatus('❌ No Backend Found');
     setCurrentNetwork('Not Connected');
-    Alert.alert(
-      'Backend Connection Failed',
-      'Could not connect to any backend endpoints.\n\nMake sure:\n1. Backend server is running\n2. You are on the same network\n3. IP addresses are correct'
-    );
   };
 
   // ========================================
@@ -1744,14 +492,11 @@ export default function App() {
 
     setLoading(true);
     try {
-      console.log(`Attempting login to: ${API_BASE}/api/token/`);
       const response = await fetch(`${API_BASE}/api/token/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(loginForm)
       });
-
-      console.log(`Login response status: ${response.status}`);
 
       if (response.ok) {
         const data = await response.json();
@@ -1765,15 +510,10 @@ export default function App() {
         Alert.alert('Success', 'Logged in successfully!');
       } else {
         const errorData = await response.json();
-        console.log('Login error data:', errorData);
         Alert.alert('Login Failed', errorData.detail || 'Invalid credentials');
       }
     } catch (error) {
-      console.error('Login network error:', error);
-      Alert.alert(
-        'Network Error',
-        `Cannot connect to server at ${API_BASE}\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}\n\nTry:\n1. Check Backend Status\n2. Make sure backend is running\n3. Check network connection`
-      );
+      Alert.alert('Error', 'Network error during login');
     }
     setLoading(false);
   };
@@ -2196,93 +936,6 @@ export default function App() {
   };
 
   // ========================================
-  // DELIVERY CRUD FUNCTIONS
-  // ========================================
-
-  const createDelivery = async (deliveryData: any) => {
-    setLoading(true);
-    try {
-      const response = await makeAuthenticatedRequest('/api/deliveries/', {
-        method: 'POST',
-        body: JSON.stringify(deliveryData)
-      });
-
-      if (!response.ok) {
-        let errorMessage = 'Failed to create delivery';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorData.detail || JSON.stringify(errorData);
-        } catch (e) {
-          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
-
-      Alert.alert('Success', 'Delivery created successfully!');
-      await loadDeliveries();
-
-    } catch (error) {
-      console.error('Error creating delivery:', error);
-      Alert.alert('Error', (error as any).message || 'Failed to create delivery');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updateDelivery = async (deliveryId: any, deliveryData: any) => {
-    setLoading(true);
-    try {
-      const response = await makeAuthenticatedRequest(`/api/deliveries/${deliveryId}/`, {
-        method: 'PATCH',
-        body: JSON.stringify(deliveryData)
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to update delivery');
-      }
-
-      Alert.alert('Success', 'Delivery updated successfully!');
-      await loadDeliveries();
-
-    } catch (error) {
-      console.error('Error updating delivery:', error);
-      Alert.alert('Error', (error as any).message || 'Failed to update delivery');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteDelivery = async (deliveryId: any) => {
-    setLoading(true);
-    try {
-      const response = await makeAuthenticatedRequest(`/api/deliveries/${deliveryId}/`, {
-        method: 'DELETE'
-      });
-
-      if (!response.ok) {
-        let errorMessage = 'Failed to delete delivery';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.detail || errorData.message || errorMessage;
-        } catch (e) {
-          // If response has no JSON, use default message
-        }
-        throw new Error(errorMessage);
-      }
-
-      Alert.alert('Success', 'Delivery deleted successfully!');
-      await loadDeliveries();
-
-    } catch (error) {
-      console.error('Error deleting delivery:', error);
-      Alert.alert('Error', (error as any).message || 'Failed to delete delivery');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ========================================
   // DRIVER CRUD FUNCTIONS
   // ========================================
 
@@ -2424,85 +1077,6 @@ export default function App() {
     } catch (error) {
       console.error('Error loading available vehicles:', error);
       return [];
-    }
-  };
-
-  // ========================================
-  // DRIVER-VEHICLE CRUD FUNCTIONS
-  // ========================================
-
-  const createDriverVehicle = async (assignmentData: any) => {
-    setLoading(true);
-    try {
-      const response = await makeAuthenticatedRequest('/api/driver-vehicles/', {
-        method: 'POST',
-        body: JSON.stringify({
-          driver: parseInt(assignmentData.driver_id),
-          vehicle: parseInt(assignmentData.vehicle_id),
-          assigned_from: assignmentData.assigned_from,
-          assigned_to: assignmentData.assigned_to || null
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`Failed to create driver-vehicle assignment: ${errorData}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error creating driver-vehicle assignment:', error);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updateDriverVehicle = async (assignmentId: any, assignmentData: any) => {
-    setLoading(true);
-    try {
-      const response = await makeAuthenticatedRequest(`/api/driver-vehicles/${assignmentId}/`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          driver: parseInt(assignmentData.driver_id),
-          vehicle: parseInt(assignmentData.vehicle_id),
-          assigned_from: assignmentData.assigned_from,
-          assigned_to: assignmentData.assigned_to || null
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`Failed to update driver-vehicle assignment: ${errorData}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error updating driver-vehicle assignment:', error);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteDriverVehicle = async (assignmentId: any) => {
-    setLoading(true);
-    try {
-      const response = await makeAuthenticatedRequest(`/api/driver-vehicles/${assignmentId}/`, {
-        method: 'DELETE'
-      });
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`Failed to delete driver-vehicle assignment: ${errorData}`);
-      }
-
-      return true;
-    } catch (error) {
-      console.error('Error deleting driver-vehicle assignment:', error);
-      throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -2687,16 +1261,6 @@ export default function App() {
     return <AdminDeliveriesScreen onBack={() => setCurrentScreen('dashboard')} />;
   }
 
-  // Admin Drivers Screen
-  if (currentScreen === 'admin_drivers') {
-    return <AdminDriversScreen onBack={() => setCurrentScreen('dashboard')} />;
-  }
-
-  // Admin Driver-Vehicles Screen
-  if (currentScreen === 'admin_driver_vehicles') {
-    return <AdminDriverVehiclesScreen onBack={() => setCurrentScreen('dashboard')} />;
-  }
-
   // Delivery Request Screen
   if (currentScreen === 'delivery_request') {
     return <DeliveryRequestScreen onBack={() => setCurrentScreen('dashboard')} />;
@@ -2705,11 +1269,6 @@ export default function App() {
   // My Deliveries Screen
   if (currentScreen === 'my_deliveries') {
     return <MyDeliveriesScreen onBack={() => setCurrentScreen('dashboard')} />;
-  }
-
-  // Register as Driver Screen
-  if (currentScreen === 'register_driver') {
-    return <RegisterAsDriverScreen onBack={() => setCurrentScreen('main')} />;
   }
   // ========================================
 
@@ -2735,17 +1294,6 @@ export default function App() {
             <Text style={styles.statusLabel}>Backend Status</Text>
             <Text style={styles.status}>{backendStatus}</Text>
             <Text style={styles.networkLabel}>Network: {currentNetwork}</Text>
-            <Text style={styles.networkLabel}>API Base: {API_BASE}</Text>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🔧 Debug Info</Text>
-            <Text style={styles.networkLabel}>Available Endpoints:</Text>
-            {NETWORK_ENDPOINTS.map((endpoint, index) => (
-              <Text key={index} style={[styles.networkLabel, { fontSize: 12, marginLeft: 10 }]}>
-                • {endpoint.name}: {endpoint.url}
-              </Text>
-            ))}
           </View>
 
           <View style={styles.section}>
@@ -2761,7 +1309,7 @@ export default function App() {
               <Button title="👤 Register as Customer" onPress={() => setCurrentScreen('customer_register')} />
             </View>
             <View style={styles.buttonContainer}>
-              <Button title="🚚 Register as Driver" onPress={() => setCurrentScreen('register_driver')} />
+              <Button title="🚚 Register as Driver" onPress={() => setCurrentScreen('driver_register')} />
             </View>
           </View>
 
@@ -3159,7 +1707,7 @@ export default function App() {
                   <Button title="📦 Manage Deliveries" onPress={() => setCurrentScreen('admin_deliveries')} />
                 </View>
                 <View style={styles.buttonContainer}>
-                  <Button title="🔗 Driver Vehicles" onPress={() => setCurrentScreen('admin_driver_vehicles')} />
+                  <Button title="🔗 Driver Vehicles" onPress={async () => { await loadDriverVehicles(); setAdminScreen('driver_vehicles'); }} />
                 </View>
                 <View style={styles.buttonContainer}>
                   <Button title="🔄" onPress={loadData} />
@@ -3245,13 +1793,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 10,
-    color: '#333',
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 5,
-    marginTop: 10,
     color: '#333',
   },
   itemContainer: {

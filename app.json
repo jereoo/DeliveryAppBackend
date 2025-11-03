@@ -1,14 +1,13 @@
 {
   "expo": {
     "name": "DeliveryAppMobile",
-    "slug": "DeliveryAppMobile",
-    "version": "1.0.0",
+    "slug": "deliveryappmobile",
+    "version": "1.2.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "sdkVersion": "54.0.0",
+    "platforms": ["ios", "android", "web"],
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -17,14 +16,14 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "bundler": "metro"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ]
   }
 }
