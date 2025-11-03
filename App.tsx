@@ -90,7 +90,7 @@ export default function App() {
     const [selected, setSelected] = useState<any>(null);
     const [form, setForm] = useState<any>({
       username: '', email: '', password: '', first_name: '', last_name: '', phone_number: '',
-      address_unit: '', address_street: '', address_city: '', address_state: '', address_postal_code: '', address_country: '',
+      address_unit: '', address_street: '', address_city: '', address_state: '', address_postal_code: '', address_country: 'US',
       company_name: '', is_business: false, preferred_pickup_address: ''
     });
     const [error, setError] = useState<string | null>(null);
@@ -149,7 +149,7 @@ export default function App() {
         setMode('list');
         setForm({
           username: '', email: '', password: '', first_name: '', last_name: '', phone_number: '',
-          address_unit: '', address_street: '', address_city: '', address_state: '', address_postal_code: '', address_country: '',
+          address_unit: '', address_street: '', address_city: '', address_state: '', address_postal_code: '', address_country: 'US',
           company_name: '', is_business: false, preferred_pickup_address: ''
         });
         await loadCustomers();
@@ -184,7 +184,7 @@ export default function App() {
             </View>
             {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
             <View style={styles.buttonContainer}>
-              <Button title="Add Customer" onPress={() => { setMode('create'); setForm({ username: '', email: '', password: '', first_name: '', last_name: '', phone_number: '', address_unit: '', address_street: '', address_city: '', address_state: '', address_postal_code: '', address_country: '', company_name: '', is_business: false, preferred_pickup_address: '' }); }} />
+              <Button title="Add Customer" onPress={() => { setMode('create'); setForm({ username: '', email: '', password: '', first_name: '', last_name: '', phone_number: '', address_unit: '', address_street: '', address_city: '', address_state: '', address_postal_code: '', address_country: 'US', company_name: '', is_business: false, preferred_pickup_address: '' }); }} />
             </View>
             {localLoading ? <ActivityIndicator /> : customers.length === 0 ? (
               <Text style={styles.emptyText}>No customers found.</Text>
@@ -229,7 +229,23 @@ export default function App() {
             <TextInput style={styles.input} value={form.address_city} onChangeText={t => setForm((f: typeof form) => ({ ...f, address_city: t }))} placeholder="City" />
             <TextInput style={styles.input} value={form.address_state} onChangeText={t => setForm((f: typeof form) => ({ ...f, address_state: t }))} placeholder="State/Province" />
             <TextInput style={styles.input} value={form.address_postal_code} onChangeText={t => setForm((f: typeof form) => ({ ...f, address_postal_code: t }))} placeholder="Postal/ZIP Code" />
-            <TextInput style={styles.input} value={form.address_country} onChangeText={t => setForm((f: typeof form) => ({ ...f, address_country: t }))} placeholder="Country (e.g., CA, US)" />
+            <Text style={styles.label}>Country *</Text>
+            <View style={{ flexDirection: 'row', marginBottom: 10 }}>
+              <View style={{ flex: 1, marginRight: 5 }}>
+                <Button 
+                  title={form.address_country === 'CA' ? '🇨🇦 Canada' : 'Canada (CA)'} 
+                  onPress={() => setForm((f: typeof form) => ({ ...f, address_country: 'CA' }))}
+                  color={form.address_country === 'CA' ? '#007AFF' : '#8E8E93'}
+                />
+              </View>
+              <View style={{ flex: 1, marginLeft: 5 }}>
+                <Button 
+                  title={form.address_country === 'US' ? '🇺🇸 USA' : 'USA (US)'} 
+                  onPress={() => setForm((f: typeof form) => ({ ...f, address_country: 'US' }))}
+                  color={form.address_country === 'US' ? '#007AFF' : '#8E8E93'}
+                />
+              </View>
+            </View>
             <View style={styles.switchContainer}>
               <Text style={styles.switchLabel}>Is Business Customer</Text>
               <Switch value={form.is_business} onValueChange={v => setForm((f: typeof form) => ({ ...f, is_business: v }))} />
@@ -1638,7 +1654,7 @@ export default function App() {
     address_city: '',
     address_state: '',
     address_postal_code: '',
-    address_country: '',
+    address_country: 'US', // Default to US to match backend
     company_name: '',
     is_business: false,
     preferred_pickup_address: ''
@@ -2921,12 +2937,26 @@ export default function App() {
               placeholder="Postal/ZIP Code"
             />
 
-            <TextInput
-              style={styles.input}
-              value={customerForm.address_country}
-              onChangeText={(text) => setCustomerForm({ ...customerForm, address_country: text })}
-              placeholder="Country (e.g., CA for Canada, US for USA)"
-            />
+            <Text style={styles.label}>Country *</Text>
+            <View style={{ flexDirection: 'row', marginBottom: 10 }}>
+              <View style={{ flex: 1, marginRight: 5 }}>
+                <Button 
+                  title={customerForm.address_country === 'CA' ? '🇨🇦 Canada (CA)' : 'Canada (CA)'} 
+                  onPress={() => setCustomerForm({ ...customerForm, address_country: 'CA' })}
+                  color={customerForm.address_country === 'CA' ? '#007AFF' : '#8E8E93'}
+                />
+              </View>
+              <View style={{ flex: 1, marginLeft: 5 }}>
+                <Button 
+                  title={customerForm.address_country === 'US' ? '🇺🇸 USA (US)' : 'USA (US)'} 
+                  onPress={() => setCustomerForm({ ...customerForm, address_country: 'US' })}
+                  color={customerForm.address_country === 'US' ? '#007AFF' : '#8E8E93'}
+                />
+              </View>
+            </View>
+            <Text style={{ fontSize: 12, color: '#666', marginBottom: 10 }}>
+              Selected: {customerForm.address_country === 'CA' ? 'Canada' : customerForm.address_country === 'US' ? 'United States' : 'Please select a country'}
+            </Text>
 
             <Text style={styles.sectionTitle}>Business Customer</Text>
             <View style={styles.switchContainer}>
