@@ -1,13 +1,13 @@
 {
-    "username": "testuser123",
-    "password": "testpass123",
-    "email": "test@example.com",
-    "first_name": "Test",
-    "last_name": "User",
-    "phone_number": "555-0123",
-    "address_street": "123 Test St",
-    "address_city": "Test City",
-    "address_state": "Test State",
-    "address_postal_code": "12345",
-    "address_country": "US"
+  "username": "testuser123",
+  "password": "testpass123",
+  "email": "test@example.com",
+  "first_name": "Test",
+  "last_name": "User",
+  "phone_number": "555-0123",
+  "address_street": "123 Test St",
+  "address_city": "Test City",
+  "address_state": "Test State",
+  "address_postal_code": "12345",
+  "address_country": "US"
 }
