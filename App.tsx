@@ -10,7 +10,6 @@
  * 4. Test customer registration on phone - keyboard should no longer block fields
  */
 
-import * as Network from 'expo-network';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -1603,28 +1602,15 @@ export default function App() {
 
   // All constants, useState, useEffect, and helper functions at the top
   // Dynamically detect local IP for API_BASE
-  const [API_BASE, setApiBase] = useState('http://localhost:8081');
-  const [currentNetwork, setCurrentNetwork] = useState('Detecting...');
-  useEffect(() => {
-    // Only try to detect on real device, not web
-    if (Platform.OS !== 'web') {
-      (async () => {
-        try {
-          const ip = await Network.getIpAddressAsync();
-          if (ip && ip.startsWith('192.168.')) {
-            setApiBase(`http://${ip}:8081`);
-            setCurrentNetwork(`Auto-detected (${ip})`);
-          }
-        } catch (e) {
-          console.log('Failed to get IP address:', e);
-        }
-      })();
-    }
-  }, []);
+  // FIXED: Use Django backend IP directly (not phone's IP)
+  // UPDATED: IP changed from 192.168.1.69 to 192.168.1.68
+  const [API_BASE, setApiBase] = useState('http://192.168.1.68:8081');
+  const [currentNetwork, setCurrentNetwork] = useState('Django Backend (192.168.1.68)');
   // Optionally, you can keep fallback endpoints for manual override
   const NETWORK_ENDPOINTS = [
     { url: API_BASE, name: 'Auto-detected' },
-    { url: 'http://192.168.1.77:8081', name: 'Current Mobile Network' },
+    { url: 'http://192.168.1.68:8081', name: 'Current Backend IP' },
+    { url: 'http://192.168.1.77:8081', name: 'Alternative IP' },
     { url: 'http://192.168.1.85:8081', name: 'Home Office Network' },
     { url: 'http://192.168.1.87:8081', name: 'Home Office Network (Alt)' },
     { url: 'http://172.20.10.6:8081', name: 'Mobile Hotspot' }
@@ -2122,27 +2108,32 @@ export default function App() {
   const updateCustomer = async (customerId: any, customerData: any) => {
     setLoading(true);
     try {
+      console.log('[DEBUG] updateCustomer called:', { customerId, customerData });
+      // Always include password field in update, even if blank
+      const payload = { ...customerData };
       const response = await makeAuthenticatedRequest(`/api/customers/${customerId}/`, {
         method: 'PATCH',
-        body: JSON.stringify(customerData)
+        body: JSON.stringify(payload)
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to update customer');
+      console.log('[DEBUG] updateCustomer response status:', response.status);
+      let responseBody;
+      try {
+        responseBody = await response.clone().json();
+        console.log('[DEBUG] updateCustomer response body:', responseBody);
+      } catch (e) {
+        responseBody = await response.clone().text();
+        console.log('[DEBUG] updateCustomer response text:', responseBody);
       }
-
+      if (!response.ok) {
+        throw new Error((responseBody && responseBody.message) || (responseBody && responseBody.detail) || 'Failed to update customer');
+      }
       Alert.alert('Success', 'Customer updated successfully!');
       setCrudMode('list');
       loadCustomers();
-
     } catch (error) {
-      console.error('Error updating customer:', error);
-      if (error instanceof Error) {
-        Alert.alert('Error', error.message || 'Failed to update customer');
-      } else {
-        Alert.alert('Error', 'Failed to update customer');
-      }
+      console.error('[DEBUG] Error updating customer:', error);
+      const errMsg = error instanceof Error ? error.message : 'Failed to update customer';
+      Alert.alert('Error', errMsg);
     } finally {
       setLoading(false);
     }
@@ -2627,7 +2618,11 @@ export default function App() {
       }
 
     } catch (error) {
-      console.error('Error updating vehicle:', error);
+      if (error instanceof Error) {
+        console.error('Error updating vehicle:', error.message, error.stack);
+      } else {
+        console.error('Error updating vehicle:', error);
+      }
       Alert.alert('Error', (error as any).message || 'Failed to update vehicle');
     } finally {
       setLoading(false);
