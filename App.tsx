@@ -76,6 +76,8 @@ const CustomerDeliveryHistory = ({ customerId }: { customerId: any }) => {
 
 export default function App() {
   // ====== STUBS FOR MISSING SCREENS ======
+
+
   function AdminCustomersScreen({
     onBack,
     customers,
@@ -174,6 +176,9 @@ export default function App() {
 
     // Render
     if (mode === 'list') {
+      console.log('[DEBUG] AdminCustomersScreen - Rendering list mode');
+      console.log('[DEBUG] Customers length:', customers.length);
+      console.log('[DEBUG] LocalLoading:', localLoading);
       return (
         <ScrollView style={styles.container}>
           <View style={styles.content}>
@@ -181,11 +186,38 @@ export default function App() {
               <Button title="← Back" onPress={onBack} />
               <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>👥 Admin Customers</Text>
             </View>
+
             {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
+
             <View style={styles.buttonContainer}>
-              <Button title="Add Customer" onPress={() => { setMode('create'); setForm({ username: '', email: '', password: '', first_name: '', last_name: '', phone_number: '', address_unit: '', address_street: '', address_city: '', address_state: '', address_postal_code: '', address_country: 'US', company_name: '', is_business: false, preferred_pickup_address: '' }); }} />
+              <Button
+                title="Add Customer"
+                onPress={() => {
+                  setMode('create');
+                  setForm({
+                    username: '',
+                    email: '',
+                    password: '',
+                    first_name: '',
+                    last_name: '',
+                    phone_number: '',
+                    address_unit: '',
+                    address_street: '',
+                    address_city: '',
+                    address_state: '',
+                    address_postal_code: '',
+                    address_country: 'US',
+                    company_name: '',
+                    is_business: false,
+                    preferred_pickup_address: '',
+                  });
+                }}
+              />
             </View>
-            {localLoading ? <ActivityIndicator /> : customers.length === 0 ? (
+
+            {localLoading ? (
+              <ActivityIndicator />
+            ) : customers.length === 0 ? (
               <Text style={styles.emptyText}>No customers found.</Text>
             ) : (
               customers.map((customer: any) => (
@@ -193,9 +225,12 @@ export default function App() {
                   <Text style={styles.itemTitle}>{customer.first_name} {customer.last_name} ({customer.username})</Text>
                   <Text>Email: {customer.email}</Text>
                   <Text>Phone: {customer.phone_number}</Text>
+                  <Text>Business: {customer.is_business ? 'Yes' : 'No'}</Text>
+                  {customer.is_business && <Text>Company: {customer.company_name}</Text>}
+                  <Text>Address: {customer.address_unit} {customer.address_street}, {customer.address_city}, {customer.address_state} {customer.address_postal_code}</Text>
                   <View style={{ flexDirection: 'row', marginTop: 8 }}>
                     <View style={{ flex: 1, marginRight: 4 }}>
-                      <Button title="Detail" onPress={() => handleSelect(customer)} />
+                      <Button title="View" onPress={() => handleSelect(customer)} />
                     </View>
                     <View style={{ flex: 1, marginRight: 4 }}>
                       <Button title="Edit" onPress={() => handleEdit(customer)} />
@@ -677,7 +712,7 @@ export default function App() {
       try {
         console.log('🚚 Delivery Request Debug Info:');
         console.log(`API Base: ${API_BASE}`);
-        console.log(`Auth Token: ${authToken ? authToken.substring(0, 20) + '...' : 'None'}`);
+        console.log(`Auth Token: ${typeof authToken === 'string' ? authToken.substring(0, 20) + '...' : 'None'}`);
         console.log(`Form Data:`, form);
 
         const response = await makeAuthenticatedRequest('/api/deliveries/request_delivery/', {
@@ -701,7 +736,7 @@ export default function App() {
         }
       } catch (error) {
         console.log(`Network Error:`, error);
-        setError(`Network error during delivery request: ${error.message || error}`);
+        setError(`Network error during delivery request: ${error instanceof Error ? error.message : String(error)}`);
       }
       setLocalLoading(false);
     };
@@ -1618,7 +1653,7 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState('main');
   const [backendStatus, setBackendStatus] = useState('Checking...');
   const [loading, setLoading] = useState(false);
-  const [authToken, setAuthToken] = useState(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
   const [userType, setUserType] = useState<'admin' | 'customer' | 'driver' | null>(null); // 'admin', 'customer', 'driver'
   const [driverCrudMode, setDriverCrudMode] = useState<'list' | 'create' | 'edit'>('list');
   const [selectedDriver, setSelectedDriver] = useState<any>(null);
@@ -1705,8 +1740,7 @@ export default function App() {
       try {
         console.log(`Testing endpoint: ${endpoint.url}/api/`);
         const response = await fetch(`${endpoint.url}/api/`, {
-          method: 'GET',
-          timeout: 5000
+          method: 'GET'
         });
 
         console.log(`Response from ${endpoint.name}: ${response.status}`);
@@ -2691,6 +2725,10 @@ export default function App() {
   useEffect(() => {
     if (authToken && currentScreen === 'dashboard') {
       loadData();
+    }
+    // Load customers when entering admin_customers screen
+    if (authToken && currentScreen === 'admin_customers') {
+      loadCustomers();
     }
   }, [authToken, currentScreen, userType]);
 

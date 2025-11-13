@@ -1,8 +1,10 @@
+import * as FileSystem from 'expo-file-system';
+
 // Enhanced Network Configuration with Auto-Detection
 const NetworkConfig = {
   // Environment detection
   isDevelopment: __DEV__ || process.env.NODE_ENV === 'development',
-  
+
   // Development: Auto-detect + fallbacks
   development: {
     autoDetect: true,
@@ -17,7 +19,7 @@ const NetworkConfig = {
       { url: 'http://localhost:8081', name: 'Localhost' }
     ]
   },
-  
+
   // Production: Static URLs
   production: {
     baseURL: 'https://api.deliveryapp.com',
@@ -41,34 +43,33 @@ const getCurrentDeviceIP = async () => {
 // Smart network scanning for development
 const scanLocalNetwork = async () => {
   const { commonPorts, scanTimeout } = NetworkConfig.development;
-  
-  // Get base IP ranges to scan
+
   const ipRanges = [
-    '192.168.1.',   // Most common home network
-    '192.168.0.',   // Alternative home network
-    '10.0.0.',      // Some routers
-    '172.20.10.'    // Mobile hotspot range
+    '192.168.1.',
+    '192.168.0.',
+    '10.0.0.',
+    '172.20.10.'
   ];
-  
+
   for (const baseIP of ipRanges) {
-    for (let i = 1; i <= 20; i++) { // Scan first 20 IPs (most common)
+    for (let i = 1; i <= 20; i++) {
       for (const port of commonPorts) {
         try {
-          const testURL = http://:;
+          const testURL = `http://${baseIP}${i}:${port}`;
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), scanTimeout);
-          
-          const response = await fetch(${testURL}/api/, {
+
+          const response = await fetch(`${testURL}/api/`, {
             method: 'GET',
             signal: controller.signal
           });
-          
+
           clearTimeout(timeoutId);
-          
+
           if (response.status === 401 || response.status === 200) {
-            return { 
-              url: testURL, 
-              name: Auto-detected (:) 
+            return {
+              url: testURL,
+              name: `Auto-detected (${baseIP}${i}:${port})`
             };
           }
         } catch (e) {
@@ -84,31 +85,29 @@ const scanLocalNetwork = async () => {
 const checkBackendSmart = async () => {
   setBackendStatus('🔍 Auto-detecting network...');
   setCurrentNetwork('Scanning...');
-  
+
   try {
     if (NetworkConfig.isDevelopment) {
-      // Development: Try auto-detection first
       const detected = await scanLocalNetwork();
-      
+
       if (detected) {
         setApiBase(detected.url);
         setCurrentNetwork(detected.name);
-        setBackendStatus(✅ Auto-detected: );
+        setBackendStatus(`✅ Auto-detected: ${detected.url}`);
         return;
       }
-      
-      // Fallback to predefined endpoints
+
       for (const endpoint of NetworkConfig.development.fallbackEndpoints) {
         try {
-          const response = await fetch(${endpoint.url}/api/, {
+          const response = await fetch(`${endpoint.url}/api/`, {
             method: 'GET',
             timeout: 3000
           });
-          
+
           if (response.status === 401 || response.status === 200) {
             setApiBase(endpoint.url);
             setCurrentNetwork(endpoint.name);
-            setBackendStatus(✅ Connected: );
+            setBackendStatus(`✅ Connected: ${endpoint.url}`);
             return;
           }
         } catch (error) {
@@ -116,9 +115,8 @@ const checkBackendSmart = async () => {
         }
       }
     } else {
-      // Production: Use static URLs
       try {
-        const response = await fetch(${NetworkConfig.production.baseURL}/api/);
+        const response = await fetch(`${NetworkConfig.production.baseURL}/api/`);
         if (response.status === 401 || response.status === 200) {
           setApiBase(NetworkConfig.production.baseURL);
           setCurrentNetwork('Production Server');
@@ -126,8 +124,7 @@ const checkBackendSmart = async () => {
           return;
         }
       } catch {
-        // Try fallback
-        const response = await fetch(${NetworkConfig.production.fallbackURL}/api/);
+        const response = await fetch(`${NetworkConfig.production.fallbackURL}/api/`);
         if (response.status === 401 || response.status === 200) {
           setApiBase(NetworkConfig.production.fallbackURL);
           setCurrentNetwork('Production Server (Backup)');
@@ -136,11 +133,57 @@ const checkBackendSmart = async () => {
         }
       }
     }
-    
+
     setBackendStatus('❌ No backend found');
     setCurrentNetwork('None');
   } catch (error) {
     setBackendStatus('❌ Network error');
     setCurrentNetwork('Error');
+  }
+};
+
+// Enhanced backend detection with dynamic IP auto-detection
+const initializeBackendConnection = async () => {
+  try {
+    const detected = await scanLocalNetwork();
+    if (detected) {
+      API_BASE_URL = detected.url; // Dynamically set the backend URL
+      console.log(`Connected to backend at ${API_BASE_URL}`);
+    } else {
+      console.error("Failed to detect backend server.");
+    }
+  } catch (error) {
+    console.error("Error during backend detection:", error);
+  }
+};
+
+// Call this function during app initialization
+initializeBackendConnection();
+
+// Error logging functionality
+const logErrorToFile = async (errorMessage) => {
+  const logFilePath = `${FileSystem.documentDirectory}ERR/error_log.txt`;
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] ${errorMessage}\n`;
+
+  try {
+    await FileSystem.writeAsStringAsync(logFilePath, logMessage, { append: true });
+    console.log("Error logged to file:", logFilePath);
+  } catch (err) {
+    console.error("Failed to log error to file:", err);
+  }
+};
+
+// Example usage in an API call
+const fetchData = async () => {
+  try {
+    const response = await fetch(API_BASE_URL + "endpoint");
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    logErrorToFile(error.message);
+    throw error;
   }
 };
