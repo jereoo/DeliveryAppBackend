@@ -388,8 +388,10 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(write_only=True, required=False, help_text="Full name (alternative to first_name + last_name)")
     
     vehicle_license_plate = serializers.CharField(write_only=True, help_text="Vehicle license plate")
+    vehicle_make = serializers.CharField(write_only=True, help_text="Vehicle make/manufacturer")
     vehicle_model = serializers.CharField(write_only=True, help_text="Vehicle model")
     vehicle_year = serializers.IntegerField(write_only=True, help_text="Vehicle manufacturing year")
+    vehicle_vin = serializers.CharField(write_only=True, max_length=17, help_text="Vehicle VIN")
     vehicle_capacity = serializers.IntegerField(write_only=True, help_text="Vehicle capacity")
     vehicle_capacity_unit = serializers.ChoiceField(
         choices=Vehicle.CAPACITY_UNIT_CHOICES, 
@@ -401,8 +403,8 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Driver
         fields = ['username', 'email', 'password', 'first_name', 'last_name', 'full_name',
-                 'name', 'phone_number', 'license_number', 'vehicle_license_plate', 
-                 'vehicle_model', 'vehicle_year', 'vehicle_capacity', 'vehicle_capacity_unit']
+                 'phone_number', 'license_number', 'vehicle_license_plate', 'vehicle_make',
+                 'vehicle_model', 'vehicle_year', 'vehicle_vin', 'vehicle_capacity', 'vehicle_capacity_unit']
     
     def validate(self, data):
         """Validate and process name fields"""
@@ -453,6 +455,14 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("This vehicle license plate is already registered")
         return value
     
+    def validate_vehicle_vin(self, value):
+        """Ensure vehicle VIN is unique and properly formatted"""
+        if Vehicle.objects.filter(vin=value).exists():
+            raise serializers.ValidationError("This vehicle VIN is already registered")
+        if len(value) != 17:
+            raise serializers.ValidationError("VIN must be exactly 17 characters")
+        return value.upper()
+    
     def create(self, validated_data):
         from django.utils import timezone
         # Remove full_name from validated_data if present (already processed in validate())
@@ -462,8 +472,10 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
         vehicle_year = validated_data.pop('vehicle_year')
         vehicle_data = {
             'license_plate': validated_data.pop('vehicle_license_plate'),
+            'make': validated_data.pop('vehicle_make'),
             'model': validated_data.pop('vehicle_model'),
             'year': vehicle_year,
+            'vin': validated_data.pop('vehicle_vin'),
             'capacity': validated_data.pop('vehicle_capacity'),
             'capacity_unit': validated_data.pop('vehicle_capacity_unit'),
             'active': True
