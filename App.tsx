@@ -1050,11 +1050,21 @@ export default function App() {
     );
   }
 
-  function AdminDriversScreen({ onBack }: { onBack: () => void }) {
+  function AdminDriversScreen({
+    onBack,
+    drivers,
+    loadDrivers
+  }: {
+    onBack: () => void,
+    drivers: any[],
+    loadDrivers: () => Promise<void>
+  }) {
+    console.log('[DEBUG] AdminDriversScreen: Component initialized/re-initialized');
     const [selectedDriver, setSelectedDriver] = useState<any>(null);
     const [mode, setMode] = useState<'list' | 'create' | 'edit' | 'detail'>('list');
     const [formData, setFormData] = useState({
-      name: '',
+      first_name: '',
+      last_name: '',
       phone_number: '',
       license_number: '',
       active: true
@@ -1062,9 +1072,12 @@ export default function App() {
     const [error, setError] = useState<string | null>(null);
     const [localLoading, setLocalLoading] = useState(false);
 
+    // Note: Drivers are loaded by parent component, no need for useEffect here
+
     const resetForm = () => {
       setFormData({
-        name: '',
+        first_name: '',
+        last_name: '',
         phone_number: '',
         license_number: '',
         active: true
@@ -1073,8 +1086,8 @@ export default function App() {
     };
 
     const handleCreate = async () => {
-      if (!formData.name.trim() || !formData.license_number.trim()) {
-        setError('Name and license number are required');
+      if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.license_number.trim()) {
+        setError('First name, last name, and license number are required');
         return;
       }
 
@@ -1092,8 +1105,8 @@ export default function App() {
     };
 
     const handleUpdate = async () => {
-      if (!selectedDriver || !formData.name.trim() || !formData.license_number.trim()) {
-        setError('Name and license number are required');
+      if (!selectedDriver || !formData.first_name.trim() || !formData.last_name.trim() || !formData.license_number.trim()) {
+        setError('First name, last name, and license number are required');
         return;
       }
 
@@ -1138,7 +1151,8 @@ export default function App() {
     const handleEdit = (driver: any) => {
       setSelectedDriver(driver);
       setFormData({
-        name: driver.name || '',
+        first_name: driver.first_name || '',
+        last_name: driver.last_name || '',
         phone_number: driver.phone_number || '',
         license_number: driver.license_number || '',
         active: driver.active ?? true
@@ -1152,18 +1166,23 @@ export default function App() {
     };
 
     const refreshDrivers = async () => {
+      console.log('[DEBUG] AdminDriversScreen: Manual refresh triggered');
+      if (localLoading) {
+        console.log('[DEBUG] AdminDriversScreen: Already loading, skipping refresh');
+        return;
+      }
+
       setLocalLoading(true);
+      setError(null);
       try {
         await loadDrivers();
+        console.log('[DEBUG] AdminDriversScreen: Manual refresh completed, drivers count:', drivers.length);
       } catch (e) {
-        setError('Failed to load drivers');
+        console.error('[DEBUG] AdminDriversScreen: Failed to refresh drivers:', e);
+        setError('Failed to load drivers: ' + (e instanceof Error ? e.message : 'Unknown error'));
       }
       setLocalLoading(false);
     };
-
-    useEffect(() => {
-      refreshDrivers();
-    }, []);
 
     if (mode === 'create' || mode === 'edit') {
       return (
@@ -1178,12 +1197,20 @@ export default function App() {
 
             {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
 
-            <Text style={styles.label}>Name *</Text>
+            <Text style={styles.label}>First Name *</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter driver name"
-              value={formData.name}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
+              placeholder="Enter first name"
+              value={formData.first_name}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, first_name: text }))}
+            />
+
+            <Text style={styles.label}>Last Name *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter last name"
+              value={formData.last_name}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, last_name: text }))}
             />
 
             <Text style={styles.label}>Phone Number</Text>
@@ -1239,7 +1266,7 @@ export default function App() {
               <Button title="Edit" onPress={() => handleEdit(selectedDriver)} />
             </View>
 
-            <Text style={styles.itemTitle}>{selectedDriver.name}</Text>
+            <Text style={styles.itemTitle}>{selectedDriver.first_name} {selectedDriver.last_name}</Text>
             <Text>License: {selectedDriver.license_number}</Text>
             {selectedDriver.phone_number && <Text>Phone: {selectedDriver.phone_number}</Text>}
             <Text>Status: {selectedDriver.active ? 'Active' : 'Inactive'}</Text>
@@ -1266,6 +1293,12 @@ export default function App() {
       );
     }
 
+    console.log('[DEBUG] AdminDriversScreen: Rendering list mode');
+    console.log('[DEBUG] AdminDriversScreen: localLoading:', localLoading);
+    console.log('[DEBUG] AdminDriversScreen: drivers.length:', drivers.length);
+    console.log('[DEBUG] AdminDriversScreen: error:', error);
+    console.log('[DEBUG] AdminDriversScreen: Component re-render count:', Date.now());
+
     return (
       <ScrollView style={styles.container}>
         <View style={styles.content}>
@@ -1289,7 +1322,7 @@ export default function App() {
           ) : (
             drivers.map((driver: any) => (
               <View key={driver.id} style={styles.itemContainer}>
-                <Text style={styles.itemTitle}>{driver.name}</Text>
+                <Text style={styles.itemTitle}>{driver.first_name} {driver.last_name}</Text>
                 <Text>License: {driver.license_number}</Text>
                 {driver.phone_number && <Text>Phone: {driver.phone_number}</Text>}
                 <Text>Status: <Text style={{ color: driver.active ? 'green' : 'red' }}>
@@ -1585,7 +1618,14 @@ export default function App() {
       first_name: '',
       last_name: '',
       phone_number: '',
-      license_number: ''
+      license_number: '',
+      // Vehicle information
+      vehicle_license_plate: '',
+      vehicle_make: '',
+      vehicle_model: '',
+      vehicle_year: 2000,
+      vehicle_vin: '',
+      vehicle_capacity: 1000
     });
     const [error, setError] = useState<string | null>(null);
     const [localLoading, setLocalLoading] = useState(false);
@@ -1599,15 +1639,49 @@ export default function App() {
         first_name: '',
         last_name: '',
         phone_number: '',
-        license_number: ''
+        license_number: '',
+        // Vehicle information
+        vehicle_license_plate: '',
+        vehicle_make: '',
+        vehicle_model: '',
+        vehicle_year: 2000,
+        vehicle_vin: '',
+        vehicle_capacity: 1000
       });
       setError(null);
     };
 
     const handleRegister = async () => {
-      if (!formData.username.trim() || !formData.password.trim() || !formData.first_name.trim() ||
-        !formData.last_name.trim() || !formData.license_number.trim()) {
-        setError('Username, password, name, and license number are required');
+      console.log('[DEBUG] RegisterAsDriverScreen: Form data before validation:', JSON.stringify(formData, null, 2));
+
+      // Specific debug for license_number
+      console.log('[DEBUG] RegisterAsDriverScreen: license_number value:', `"${formData.license_number}"`);
+      console.log('[DEBUG] RegisterAsDriverScreen: license_number type:', typeof formData.license_number);
+      console.log('[DEBUG] RegisterAsDriverScreen: license_number trimmed:', `"${formData.license_number?.trim()}"`);
+      console.log('[DEBUG] RegisterAsDriverScreen: license_number exists?', !!formData.license_number);
+      console.log('[DEBUG] RegisterAsDriverScreen: license_number trim exists?', !!formData.license_number?.trim());
+
+      // Check each field individually for better debugging
+      const missingFields = [];
+      if (!formData.username?.trim()) missingFields.push('username');
+      if (!formData.password?.trim()) missingFields.push('password');
+      if (!formData.first_name?.trim()) missingFields.push('first_name');
+      if (!formData.last_name?.trim()) missingFields.push('last_name');
+      if (!formData.license_number?.trim()) missingFields.push('license_number');
+      if (!formData.vehicle_license_plate?.trim()) missingFields.push('vehicle_license_plate');
+      if (!formData.vehicle_make?.trim()) missingFields.push('vehicle_make');
+      if (!formData.vehicle_model?.trim()) missingFields.push('vehicle_model');
+      if (!formData.vehicle_vin?.trim()) missingFields.push('vehicle_vin');
+
+      // Validate vehicle year (2000 is treated as empty/default)
+      if (!formData.vehicle_year || formData.vehicle_year === 2000 || formData.vehicle_year < 2000 || formData.vehicle_year > 2100) {
+        missingFields.push('vehicle_year (must be between 2000-2100, not default)');
+      }
+
+      console.log('[DEBUG] RegisterAsDriverScreen: Missing fields:', missingFields);
+
+      if (missingFields.length > 0) {
+        setError(`Missing required fields: ${missingFields.join(', ')}`);
         return;
       }
 
@@ -1616,18 +1690,31 @@ export default function App() {
         return;
       }
 
+      console.log('[DEBUG] RegisterAsDriverScreen: Starting registration process');
       setLocalLoading(true);
       try {
-        // Register as driver (assuming similar endpoint structure as customer)
+        // Register as driver with vehicle information (backend expects flat structure)
         const registrationData = {
+          // Driver information
           username: formData.username,
           password: formData.password,
           email: formData.email,
           first_name: formData.first_name,
           last_name: formData.last_name,
           phone_number: formData.phone_number,
-          license_number: formData.license_number
+          license_number: formData.license_number,
+          // Vehicle information (flat structure as expected by backend)
+          vehicle_license_plate: formData.vehicle_license_plate,
+          vehicle_make: formData.vehicle_make,
+          vehicle_model: formData.vehicle_model,
+          vehicle_year: formData.vehicle_year,
+          vehicle_vin: formData.vehicle_vin,
+          vehicle_capacity: formData.vehicle_capacity,
+          vehicle_capacity_unit: 'kg' // Default unit
         };
+
+        console.log('[DEBUG] RegisterAsDriverScreen: Registration payload:', JSON.stringify(registrationData, null, 2));
+        console.log('[DEBUG] RegisterAsDriverScreen: API endpoint:', `${API_BASE}/api/drivers/register/`);
 
         const response = await fetch(`${API_BASE}/api/drivers/register/`, {
           method: 'POST',
@@ -1637,12 +1724,23 @@ export default function App() {
           body: JSON.stringify(registrationData)
         });
 
+        console.log('[DEBUG] RegisterAsDriverScreen: Response status:', response.status);
+        console.log('[DEBUG] RegisterAsDriverScreen: Response headers:', Object.fromEntries(response.headers.entries()));
+
         if (!response.ok) {
-          const errorData = await response.text();
-          throw new Error(`Registration failed: ${errorData}`);
+          let errorData;
+          try {
+            errorData = await response.clone().json();
+            console.log('[DEBUG] RegisterAsDriverScreen: Error response JSON:', errorData);
+          } catch (e) {
+            errorData = await response.clone().text();
+            console.log('[DEBUG] RegisterAsDriverScreen: Error response text:', errorData);
+          }
+          throw new Error(`Registration failed (${response.status}): ${JSON.stringify(errorData)}`);
         }
 
         const result = await response.json();
+        console.log('[DEBUG] RegisterAsDriverScreen: Success response:', result);
 
         Alert.alert(
           'Registration Successful!',
@@ -1740,7 +1838,94 @@ export default function App() {
             style={styles.input}
             placeholder="Enter driver's license number"
             value={formData.license_number}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, license_number: text }))}
+            onChangeText={(text) => {
+              console.log('[DEBUG] RegisterAsDriverScreen: License number changing to:', `"${text}"`);
+              setFormData(prev => {
+                const newData = { ...prev, license_number: text };
+                console.log('[DEBUG] RegisterAsDriverScreen: Updated form data license_number:', `"${newData.license_number}"`);
+                return newData;
+              });
+            }}
+          />
+
+          <Text style={styles.sectionTitle}>Vehicle Information</Text>
+          <Text style={styles.infoText}>As a driver, you must register a vehicle</Text>
+
+          <Text style={styles.label}>Vehicle License Plate *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter vehicle license plate"
+            value={formData.vehicle_license_plate}
+            onChangeText={(text) => setFormData(prev => ({ ...prev, vehicle_license_plate: text.toUpperCase() }))}
+            autoCapitalize="characters"
+          />
+
+          <Text style={styles.label}>Vehicle Make *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter vehicle make (e.g., Ford, Toyota)"
+            value={formData.vehicle_make}
+            onChangeText={(text) => setFormData(prev => ({ ...prev, vehicle_make: text }))}
+          />
+
+          <Text style={styles.label}>Vehicle Model *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter vehicle model (e.g., Transit, Hiace)"
+            value={formData.vehicle_model}
+            onChangeText={(text) => setFormData(prev => ({ ...prev, vehicle_model: text }))}
+          />
+
+          <Text style={styles.label}>Vehicle Year *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter vehicle year"
+            value={formData.vehicle_year === 2000 ? '' : formData.vehicle_year.toString()}
+            onChangeText={(text) => {
+              // Allow empty input while typing
+              if (text === '') {
+                setFormData(prev => ({ ...prev, vehicle_year: 2000 }));
+                return;
+              }
+
+              // Only allow numeric characters
+              const numericText = text.replace(/[^0-9]/g, '');
+              if (numericText.length <= 4) {
+                const year = parseInt(numericText);
+                if (!isNaN(year) && year >= 2000 && year <= 2100) {
+                  setFormData(prev => ({ ...prev, vehicle_year: year }));
+                } else if (numericText.length < 4) {
+                  // Allow partial input while typing (e.g., "20" for "2023")
+                  setFormData(prev => ({ ...prev, vehicle_year: parseInt(numericText) || 2000 }));
+                }
+              }
+            }}
+            keyboardType="numeric"
+            maxLength={4}
+          />
+
+          <Text style={styles.label}>Vehicle VIN *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter vehicle VIN (17 characters)"
+            value={formData.vehicle_vin}
+            onChangeText={(text) => setFormData(prev => ({ ...prev, vehicle_vin: text.toUpperCase() }))}
+            autoCapitalize="characters"
+            maxLength={17}
+          />
+
+          <Text style={styles.label}>Vehicle Capacity (kg) *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter vehicle capacity in kg"
+            value={formData.vehicle_capacity.toString()}
+            onChangeText={(text) => {
+              const capacity = parseInt(text) || 1000;
+              if (capacity >= 1 && capacity <= 50000) {
+                setFormData(prev => ({ ...prev, vehicle_capacity: capacity }));
+              }
+            }}
+            keyboardType="numeric"
           />
 
           <View style={styles.buttonContainer}>
@@ -1791,6 +1976,7 @@ export default function App() {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
   const [driverVehicles, setDriverVehicles] = useState<any[]>([]);
+  const [driversLoading, setDriversLoading] = useState(false);
   const [adminScreen, setAdminScreen] = useState<string | null>(null); // e.g. 'driver_vehicles'
 
   // Form states
@@ -2110,14 +2296,28 @@ export default function App() {
   };
 
   const loadDrivers = async () => {
+    if (driversLoading) {
+      console.log('[DEBUG] loadDrivers: Already loading, skipping duplicate call');
+      return;
+    }
+
+    console.log('[DEBUG] loadDrivers: Starting to load drivers');
+    setDriversLoading(true);
     try {
       const response = await makeAuthenticatedRequest('/api/drivers/');
+      console.log('[DEBUG] loadDrivers: Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
+        console.log('[DEBUG] loadDrivers: Received data:', data);
         setDrivers(data.results || data);
+        console.log('[DEBUG] loadDrivers: Set drivers, count:', (data.results || data).length);
+      } else {
+        console.error('[DEBUG] loadDrivers: Response not ok:', response.status, response.statusText);
       }
     } catch (error) {
-      console.error('Error loading drivers:', error);
+      console.error('[DEBUG] loadDrivers: Error loading drivers:', error);
+    } finally {
+      setDriversLoading(false);
     }
   };
 
@@ -2502,7 +2702,8 @@ export default function App() {
       const response = await makeAuthenticatedRequest('/api/drivers/', {
         method: 'POST',
         body: JSON.stringify({
-          name: `${driverData.first_name} ${driverData.last_name}`.trim(),
+          first_name: driverData.first_name,
+          last_name: driverData.last_name,
           phone_number: driverData.phone_number,
           license_number: driverData.license_number,
           active: driverData.active !== undefined ? driverData.active : true
@@ -2907,7 +3108,7 @@ export default function App() {
 
   // Admin Drivers Screen
   if (currentScreen === 'admin_drivers') {
-    return <AdminDriversScreen onBack={() => setCurrentScreen('dashboard')} />;
+    return <AdminDriversScreen onBack={() => setCurrentScreen('dashboard')} drivers={drivers} loadDrivers={loadDrivers} />;
   }
 
   // Admin Driver-Vehicles Screen
