@@ -2089,12 +2089,22 @@ export default function App() {
     };
 
     console.log(`🔗 API Request: ${API_BASE}${endpoint}`);
+    console.log(`🔑 Auth Token: ${authToken ? `${authToken.substring(0, 20)}...` : 'NULL/UNDEFINED'}`);
     console.log(`🔑 Auth Header: ${headers.Authorization ? 'Present' : 'Missing'}`);
+    console.log(`👤 User Type: ${userType}`);
 
-    return fetch(`${API_BASE}${endpoint}`, {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
       headers
     });
+
+    console.log(`📡 Response Status: ${response.status} ${response.statusText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.log(`❌ Error Response: ${errorText}`);
+    }
+
+    return response;
   };
 
   // Authentication Functions
