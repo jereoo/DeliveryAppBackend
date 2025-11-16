@@ -181,8 +181,8 @@ class DeliveryCreateSerializer(serializers.ModelSerializer):
 
 class DriverSerializer(serializers.ModelSerializer):
     # User model fields
-    first_name = serializers.CharField(source='user.first_name', read_only=True)
-    last_name = serializers.CharField(source='user.last_name', read_only=True)
+    first_name = serializers.CharField(source='user.first_name')
+    last_name = serializers.CharField(source='user.last_name')
     
     # Optional vehicle assignment fields
     vehicle_id = serializers.IntegerField(write_only=True, required=False, help_text="ID of vehicle to assign to this driver")
@@ -268,6 +268,17 @@ class DriverSerializer(serializers.ModelSerializer):
         # Extract vehicle assignment data
         vehicle_id = validated_data.pop('vehicle_id', None)
         assigned_from = validated_data.pop('assigned_from', timezone.now().date())
+        
+        # Extract user data
+        user_data = {}
+        if 'user' in validated_data:
+            user_data = validated_data.pop('user')
+        
+        # Update User model fields if provided
+        if user_data and instance.user:
+            for attr, value in user_data.items():
+                setattr(instance.user, attr, value)
+            instance.user.save()
         
         # Update driver fields
         for attr, value in validated_data.items():
