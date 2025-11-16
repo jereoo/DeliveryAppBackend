@@ -1331,6 +1331,9 @@ export default function App() {
                 {driver.current_vehicle_plate && (
                   <Text>Vehicle: {driver.current_vehicle_plate}</Text>
                 )}
+                {driver.current_vehicle_model && (
+                  <Text>Model: {driver.current_vehicle_model}</Text>
+                )}
 
                 <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 8 }}>
                   <Button title="View" onPress={() => handleDetail(driver)} />
