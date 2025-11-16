@@ -95,7 +95,41 @@ export default function App() {
       company_name: '', is_business: false, preferred_pickup_address: ''
     });
     const [error, setError] = useState<string | null>(null);
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
     const [localLoading, setLocalLoading] = useState(false);
+
+    // Form validation
+    const validateForm = () => {
+      const errors: Record<string, string> = {};
+
+      if (!form.username?.trim()) {
+        errors.username = 'Username is required';
+      }
+
+      if (!form.email?.trim()) {
+        errors.email = 'Email is required';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+        errors.email = 'Please enter a valid email address';
+      }
+
+      // Password validation - required for create, optional for edit
+      if (mode === 'create' && !form.password?.trim()) {
+        errors.password = 'Password is required';
+      } else if (form.password && form.password.length < 8) {
+        errors.password = 'Password must be at least 8 characters';
+      }
+
+      if (!form.first_name?.trim()) {
+        errors.first_name = 'First name is required';
+      }
+
+      if (!form.last_name?.trim()) {
+        errors.last_name = 'Last name is required';
+      }
+
+      setFieldErrors(errors);
+      return Object.keys(errors).length === 0;
+    };
 
     // Handlers
     const handleSelect = (customer: any) => {
@@ -143,8 +177,14 @@ export default function App() {
       ]);
     };
     const handleCreate = async () => {
+      if (!validateForm()) {
+        setError('Please fix the errors below');
+        return;
+      }
+
       setLocalLoading(true);
       setError(null);
+      setFieldErrors({});
       try {
         await createCustomer(form);
         setMode('list');
@@ -161,15 +201,34 @@ export default function App() {
     };
     const handleUpdate = async () => {
       if (!selected) return;
+
+      if (!validateForm()) {
+        setError('Please fix the errors below');
+        return;
+      }
+
+      console.log('[DEBUG] handleUpdate starting for customer:', selected.username || selected.id);
+      console.log('[DEBUG] handleUpdate form data:', form);
       setLocalLoading(true);
       setError(null);
+      setFieldErrors({});
+
       try {
-        await updateCustomer(selected.id, form);
+        // For updates, if password is empty, don't include it in the payload
+        const updatePayload = { ...form };
+        if (!updatePayload.password || updatePayload.password.trim() === '') {
+          delete updatePayload.password;
+        }
+
+        await updateCustomer(selected.id, updatePayload);
         setMode('list');
         setSelected(null);
         await loadCustomers();
       } catch (e) {
-        setError('Failed to update customer');
+        console.error('[DEBUG] handleUpdate error for customer:', selected.username || selected.id, e);
+        const errorMessage = e instanceof Error ? e.message : JSON.stringify(e);
+        console.error('[DEBUG] handleUpdate error details:', errorMessage);
+        setError('Failed to update customer (' + (selected.username || selected.id) + '): ' + errorMessage);
       }
       setLocalLoading(false);
     };
@@ -252,11 +311,75 @@ export default function App() {
           <View style={styles.content}>
             <Text style={styles.title}>{mode === 'create' ? 'Add Customer' : 'Edit Customer'}</Text>
             {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
-            <TextInput style={styles.input} value={form.username} onChangeText={t => setForm((f: typeof form) => ({ ...f, username: t }))} placeholder="Username *" autoCapitalize="none" />
-            <TextInput style={styles.input} value={form.email} onChangeText={t => setForm((f: typeof form) => ({ ...f, email: t }))} placeholder="Email *" autoCapitalize="none" keyboardType="email-address" />
-            <TextInput style={styles.input} value={form.password} onChangeText={t => setForm((f: typeof form) => ({ ...f, password: t }))} placeholder="Password *" secureTextEntry />
-            <TextInput style={styles.input} value={form.first_name} onChangeText={t => setForm((f: typeof form) => ({ ...f, first_name: t }))} placeholder="First Name" />
-            <TextInput style={styles.input} value={form.last_name} onChangeText={t => setForm((f: typeof form) => ({ ...f, last_name: t }))} placeholder="Last Name" />
+
+            <TextInput
+              style={fieldErrors.username ? styles.inputError : styles.input}
+              value={form.username}
+              onChangeText={t => {
+                setForm((f: typeof form) => ({ ...f, username: t }));
+                if (fieldErrors.username) {
+                  setFieldErrors(prev => ({ ...prev, username: '' }));
+                }
+              }}
+              placeholder="Username *"
+              autoCapitalize="none"
+            />
+            {fieldErrors.username && <Text style={styles.fieldError}>{fieldErrors.username}</Text>}
+
+            <TextInput
+              style={fieldErrors.email ? styles.inputError : styles.input}
+              value={form.email}
+              onChangeText={t => {
+                setForm((f: typeof form) => ({ ...f, email: t }));
+                if (fieldErrors.email) {
+                  setFieldErrors(prev => ({ ...prev, email: '' }));
+                }
+              }}
+              placeholder="Email *"
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+            {fieldErrors.email && <Text style={styles.fieldError}>{fieldErrors.email}</Text>}
+
+            <TextInput
+              style={fieldErrors.password ? styles.inputError : styles.input}
+              value={form.password}
+              onChangeText={t => {
+                setForm((f: typeof form) => ({ ...f, password: t }));
+                if (fieldErrors.password) {
+                  setFieldErrors(prev => ({ ...prev, password: '' }));
+                }
+              }}
+              placeholder={mode === 'create' ? 'Password *' : 'Password (leave blank to keep current)'}
+              secureTextEntry
+            />
+            {fieldErrors.password && <Text style={styles.fieldError}>{fieldErrors.password}</Text>}
+
+            <TextInput
+              style={fieldErrors.first_name ? styles.inputError : styles.input}
+              value={form.first_name}
+              onChangeText={t => {
+                setForm((f: typeof form) => ({ ...f, first_name: t }));
+                if (fieldErrors.first_name) {
+                  setFieldErrors(prev => ({ ...prev, first_name: '' }));
+                }
+              }}
+              placeholder="First Name *"
+            />
+            {fieldErrors.first_name && <Text style={styles.fieldError}>{fieldErrors.first_name}</Text>}
+
+            <TextInput
+              style={fieldErrors.last_name ? styles.inputError : styles.input}
+              value={form.last_name}
+              onChangeText={t => {
+                setForm((f: typeof form) => ({ ...f, last_name: t }));
+                if (fieldErrors.last_name) {
+                  setFieldErrors(prev => ({ ...prev, last_name: '' }));
+                }
+              }}
+              placeholder="Last Name *"
+            />
+            {fieldErrors.last_name && <Text style={styles.fieldError}>{fieldErrors.last_name}</Text>}
             <TextInput style={styles.input} value={form.phone_number} onChangeText={t => setForm((f: typeof form) => ({ ...f, phone_number: t }))} placeholder="Phone Number" keyboardType="phone-pad" />
             <TextInput style={styles.input} value={form.address_unit} onChangeText={t => setForm((f: typeof form) => ({ ...f, address_unit: t }))} placeholder="Unit/Apartment" />
             <TextInput style={styles.input} value={form.address_street} onChangeText={t => setForm((f: typeof form) => ({ ...f, address_street: t }))} placeholder="Street Address" />
@@ -2142,32 +2265,64 @@ export default function App() {
   const updateCustomer = async (customerId: any, customerData: any) => {
     setLoading(true);
     try {
-      console.log('[DEBUG] updateCustomer called:', { customerId, customerData });
+      console.log('[DEBUG] updateCustomer called for ID:', customerId);
+      console.log('[DEBUG] updateCustomer API_BASE:', API_BASE);
+      console.log('[DEBUG] updateCustomer payload:', JSON.stringify(customerData, null, 2));
+      console.log('[DEBUG] updateCustomer auth token present:', !!authToken);
+
       // Always include password field in update, even if blank
       const payload = { ...customerData };
-      const response = await makeAuthenticatedRequest(`/api/customers/${customerId}/`, {
+      const endpoint = `/api/customers/${customerId}/`;
+      console.log('[DEBUG] updateCustomer full URL:', API_BASE + endpoint);
+
+      const response = await makeAuthenticatedRequest(endpoint, {
         method: 'PATCH',
         body: JSON.stringify(payload)
       });
+
       console.log('[DEBUG] updateCustomer response status:', response.status);
+      console.log('[DEBUG] updateCustomer response headers:', Object.fromEntries(response.headers.entries()));
+
       let responseBody;
       try {
         responseBody = await response.clone().json();
-        console.log('[DEBUG] updateCustomer response body:', responseBody);
+        console.log('[DEBUG] updateCustomer response JSON:', responseBody);
       } catch (e) {
         responseBody = await response.clone().text();
         console.log('[DEBUG] updateCustomer response text:', responseBody);
       }
+
       if (!response.ok) {
-        throw new Error((responseBody && responseBody.message) || (responseBody && responseBody.detail) || 'Failed to update customer');
+        const errorDetails = {
+          status: response.status,
+          statusText: response.statusText,
+          body: responseBody
+        };
+        console.error('[DEBUG] updateCustomer failed:', errorDetails);
+
+        let errorMessage = 'Failed to update customer';
+        if (responseBody) {
+          if (typeof responseBody === 'object') {
+            errorMessage += ': ' + (responseBody.message || responseBody.detail || JSON.stringify(responseBody));
+          } else {
+            errorMessage += ': ' + responseBody;
+          }
+        }
+        errorMessage += ` (HTTP ${response.status})`;
+
+        throw new Error(errorMessage);
       }
+
+      console.log('[DEBUG] updateCustomer success');
       Alert.alert('Success', 'Customer updated successfully!');
       setCrudMode('list');
       loadCustomers();
     } catch (error) {
-      console.error('[DEBUG] Error updating customer:', error);
-      const errMsg = error instanceof Error ? error.message : 'Failed to update customer';
+      console.error('[DEBUG] updateCustomer exception:', error);
+      const errMsg = error instanceof Error ? error.message : 'Failed to update customer: ' + JSON.stringify(error);
+      console.error('[DEBUG] updateCustomer final error message:', errMsg);
       Alert.alert('Error', errMsg);
+      throw error; // Re-throw so handleUpdate can catch it
     } finally {
       setLoading(false);
     }
@@ -3401,6 +3556,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#f9f9f9',
     marginBottom: 10,
+  },
+  inputError: {
+    borderWidth: 1,
+    borderColor: '#ff4444',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#fff5f5',
+    marginBottom: 10,
+  },
+  fieldError: {
+    color: '#ff4444',
+    fontSize: 12,
+    marginTop: -8,
+    marginBottom: 10,
+    marginLeft: 4,
   },
   multilineInput: {
     minHeight: 80,
