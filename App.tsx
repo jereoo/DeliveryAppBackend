@@ -457,7 +457,7 @@ export default function App() {
     const [selected, setSelected] = useState<any>(null);
     const [form, setForm] = useState<any>({
       license_plate: '', make: '', model: '', year: new Date().getFullYear(),
-      vin: '', capacity: 1000, active: true
+      vin: '', capacity: 0, active: true
     });
     const [error, setError] = useState<string | null>(null);
     const [localLoading, setLocalLoading] = useState(false);
@@ -475,7 +475,7 @@ export default function App() {
         model: vehicle.model || '',
         year: vehicle.year || new Date().getFullYear(),
         vin: vehicle.vin || '',
-        capacity: vehicle.capacity || 1000,
+        capacity: vehicle.capacity || 0,
         active: vehicle.active !== undefined ? vehicle.active : true
       });
       setMode('edit');
@@ -500,6 +500,10 @@ export default function App() {
       ]);
     };
     const handleCreate = async () => {
+      if (!form.license_plate.trim() || !form.make.trim() || !form.model.trim() || !form.vin.trim() || form.capacity <= 0) {
+        setError('All fields are required and capacity must be greater than 0');
+        return;
+      }
       setLocalLoading(true);
       setError(null);
       try {
@@ -507,7 +511,7 @@ export default function App() {
         setMode('list');
         setForm({
           license_plate: '', make: '', model: '', year: new Date().getFullYear(),
-          vin: '', capacity: 1000, active: true
+          vin: '', capacity: 0, active: true
         });
         await loadVehicles();
       } catch (e) {
@@ -517,6 +521,10 @@ export default function App() {
     };
     const handleUpdate = async () => {
       if (!selected) return;
+      if (!form.license_plate.trim() || !form.make.trim() || !form.model.trim() || !form.vin.trim() || form.capacity <= 0) {
+        setError('All fields are required and capacity must be greater than 0');
+        return;
+      }
       setLocalLoading(true);
       setError(null);
       try {
@@ -541,7 +549,7 @@ export default function App() {
             </View>
             {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
             <View style={styles.buttonContainer}>
-              <Button title="Add Vehicle" onPress={() => { setMode('create'); setForm({ license_plate: '', make: '', model: '', year: new Date().getFullYear(), vin: '', capacity: 1000, active: true }); }} />
+              <Button title="Add Vehicle" onPress={() => { setMode('create'); setForm({ license_plate: '', make: '', model: '', year: new Date().getFullYear(), vin: '', capacity: 0, active: true }); }} />
             </View>
             {localLoading ? <ActivityIndicator /> : vehicles.length === 0 ? (
               <Text style={styles.emptyText}>No vehicles found.</Text>
@@ -576,12 +584,51 @@ export default function App() {
           <View style={styles.content}>
             <Text style={styles.title}>{mode === 'create' ? 'Add Vehicle' : 'Edit Vehicle'}</Text>
             {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
-            <TextInput style={styles.input} value={form.license_plate} onChangeText={t => setForm((f: typeof form) => ({ ...f, license_plate: t.toUpperCase() }))} placeholder="License Plate *" autoCapitalize="characters" />
-            <TextInput style={styles.input} value={form.make} onChangeText={t => setForm((f: typeof form) => ({ ...f, make: t }))} placeholder="Make (e.g., Ford, Toyota) *" />
-            <TextInput style={styles.input} value={form.model} onChangeText={t => setForm((f: typeof form) => ({ ...f, model: t }))} placeholder="Model (e.g., Transit, Hiace) *" />
-            <TextInput style={styles.input} value={form.year ? form.year.toString() : ''} onChangeText={t => { const year = parseInt(t) || new Date().getFullYear(); if (year >= 1900 && year <= 2100) setForm((f: typeof form) => ({ ...f, year })); }} placeholder="Year *" keyboardType="numeric" maxLength={4} />
-            <TextInput style={styles.input} value={form.vin} onChangeText={t => setForm((f: typeof form) => ({ ...f, vin: t.toUpperCase() }))} placeholder="VIN (17 characters) *" autoCapitalize="characters" maxLength={17} />
-            <TextInput style={styles.input} value={form.capacity.toString()} onChangeText={t => { const capacity = parseInt(t) || 1000; if (capacity >= 1 && capacity <= 50000) setForm((f: typeof form) => ({ ...f, capacity })); }} placeholder="Capacity (kg) *" keyboardType="numeric" />
+            
+            <Text style={styles.label}>License Plate *</Text>
+            <TextInput style={styles.input} value={form.license_plate} onChangeText={t => setForm((f: typeof form) => ({ ...f, license_plate: t.toUpperCase() }))} placeholder="Enter license plate" autoCapitalize="characters" />
+            
+            <Text style={styles.label}>Make *</Text>
+            <TextInput style={styles.input} value={form.make} onChangeText={t => setForm((f: typeof form) => ({ ...f, make: t }))} placeholder="e.g., Ford, Toyota" />
+            
+            <Text style={styles.label}>Model *</Text>
+            <TextInput style={styles.input} value={form.model} onChangeText={t => setForm((f: typeof form) => ({ ...f, model: t }))} placeholder="e.g., Transit, Hiace" />
+            
+            <Text style={styles.label}>Year *</Text>
+            <TextInput style={styles.input} value={form.year ? form.year.toString() : ''} onChangeText={t => { const year = parseInt(t) || new Date().getFullYear(); if (year >= 1900 && year <= 2100) setForm((f: typeof form) => ({ ...f, year })); }} placeholder="Enter year" keyboardType="numeric" maxLength={4} />
+            
+            <Text style={styles.label}>VIN *</Text>
+            <TextInput style={styles.input} value={form.vin} onChangeText={t => setForm((f: typeof form) => ({ ...f, vin: t.toUpperCase() }))} placeholder="17 characters" autoCapitalize="characters" maxLength={17} />
+            
+            <Text style={styles.label}>Capacity (kg) *</Text>
+            <TextInput 
+              style={styles.input} 
+              value={form.capacity === 0 ? '' : form.capacity.toString()} 
+              onChangeText={(text) => {
+                // Allow empty input while typing
+                if (text === '') {
+                  setForm((f: typeof form) => ({ ...f, capacity: 0 }));
+                  return;
+                }
+                
+                // Only allow numeric characters
+                const numericText = text.replace(/[^0-9]/g, '');
+                if (numericText.length <= 6) {
+                  const capacity = parseInt(numericText);
+                  if (!isNaN(capacity) && capacity >= 1 && capacity <= 50000) {
+                    setForm((f: typeof form) => ({ ...f, capacity }));
+                  } else if (numericText.length > 0) {
+                    // Allow partial input while typing
+                    const partialCapacity = parseInt(numericText);
+                    if (!isNaN(partialCapacity)) {
+                      setForm((f: typeof form) => ({ ...f, capacity: partialCapacity }));
+                    }
+                  }
+                }
+              }}
+              placeholder="Enter capacity in kg" 
+              keyboardType="numeric" 
+            />
             <View style={styles.switchContainer}>
               <Text style={styles.switchLabel}>Active Vehicle</Text>
               <Switch value={form.active} onValueChange={v => setForm((f: typeof form) => ({ ...f, active: v }))} />
