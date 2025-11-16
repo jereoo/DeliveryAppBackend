@@ -180,9 +180,9 @@ class DeliveryCreateSerializer(serializers.ModelSerializer):
 
 
 class DriverSerializer(serializers.ModelSerializer):
-    # User model fields
-    first_name = serializers.CharField(source='user.first_name')
-    last_name = serializers.CharField(source='user.last_name')
+    # User model fields - using SerializerMethodField to handle null user relationships
+    first_name = serializers.SerializerMethodField()
+    last_name = serializers.SerializerMethodField()
     
     # Optional vehicle assignment fields
     vehicle_id = serializers.IntegerField(write_only=True, required=False, help_text="ID of vehicle to assign to this driver")
@@ -237,6 +237,14 @@ class DriverSerializer(serializers.ModelSerializer):
         
         return current_assignment.vehicle.model if current_assignment and current_assignment.vehicle else None
     
+    def get_first_name(self, obj):
+        """Get first name from User model if exists"""
+        return obj.user.first_name if obj.user else ''
+    
+    def get_last_name(self, obj):
+        """Get last name from User model if exists"""
+        return obj.user.last_name if obj.user else ''
+    
     def create(self, validated_data):
         from django.utils import timezone
         
@@ -269,15 +277,22 @@ class DriverSerializer(serializers.ModelSerializer):
         vehicle_id = validated_data.pop('vehicle_id', None)
         assigned_from = validated_data.pop('assigned_from', timezone.now().date())
         
-        # Extract user data
-        user_data = {}
-        if 'user' in validated_data:
-            user_data = validated_data.pop('user')
+        # Handle first_name and last_name from the request data
+        # These come directly in validated_data since mobile app sends them as flat fields
+        first_name = None
+        last_name = None
         
-        # Update User model fields if provided
-        if user_data and instance.user:
-            for attr, value in user_data.items():
-                setattr(instance.user, attr, value)
+        # Check initial_data for first_name and last_name (comes from mobile app)
+        if hasattr(self, 'initial_data'):
+            first_name = self.initial_data.get('first_name')
+            last_name = self.initial_data.get('last_name')
+        
+        # Update User model fields if user exists and name fields provided
+        if (first_name is not None or last_name is not None) and hasattr(instance, 'user') and instance.user:
+            if first_name is not None:
+                instance.user.first_name = first_name
+            if last_name is not None:
+                instance.user.last_name = last_name
             instance.user.save()
         
         # Update driver fields
