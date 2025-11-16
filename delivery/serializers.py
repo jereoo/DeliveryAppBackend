@@ -180,6 +180,10 @@ class DeliveryCreateSerializer(serializers.ModelSerializer):
 
 
 class DriverSerializer(serializers.ModelSerializer):
+    # User model fields
+    first_name = serializers.CharField(source='user.first_name', read_only=True)
+    last_name = serializers.CharField(source='user.last_name', read_only=True)
+    
     # Optional vehicle assignment fields
     vehicle_id = serializers.IntegerField(write_only=True, required=False, help_text="ID of vehicle to assign to this driver")
     assigned_from = serializers.DateField(write_only=True, required=False, help_text="Date when vehicle assignment starts (defaults to today)")
@@ -187,11 +191,12 @@ class DriverSerializer(serializers.ModelSerializer):
     # Read-only fields to show current vehicle assignment
     current_vehicle = serializers.SerializerMethodField(read_only=True)
     current_vehicle_plate = serializers.SerializerMethodField(read_only=True)
+    current_vehicle_model = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Driver
-        fields = ['id', 'name', 'phone_number', 'license_number', 'active', 
-                 'vehicle_id', 'assigned_from', 'current_vehicle', 'current_vehicle_plate']
+        fields = ['id', 'name', 'first_name', 'last_name', 'phone_number', 'license_number', 'active', 
+                 'vehicle_id', 'assigned_from', 'current_vehicle', 'current_vehicle_plate', 'current_vehicle_model']
     
     def get_current_vehicle(self, obj):
         """Get the currently assigned vehicle ID"""
@@ -218,6 +223,19 @@ class DriverSerializer(serializers.ModelSerializer):
         ).order_by('-assigned_from').first()
         
         return current_assignment.vehicle.license_plate if current_assignment and current_assignment.vehicle else None
+    
+    def get_current_vehicle_model(self, obj):
+        """Get the currently assigned vehicle model"""
+        from django.utils import timezone
+        today = timezone.now().date()
+        current_assignment = DriverVehicle.objects.filter(
+            driver=obj,
+            assigned_from__lte=today
+        ).filter(
+            models.Q(assigned_to__isnull=True) | models.Q(assigned_to__gte=today)
+        ).order_by('-assigned_from').first()
+        
+        return current_assignment.vehicle.model if current_assignment and current_assignment.vehicle else None
     
     def create(self, validated_data):
         from django.utils import timezone
