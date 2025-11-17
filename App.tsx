@@ -1549,30 +1549,62 @@ export default function App() {
 
             {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
 
-            <Text style={styles.label}>Driver *</Text>
-            <View style={{ backgroundColor: '#f5f5f5', borderRadius: 5, marginBottom: 10 }}>
-              {drivers.map((driver: any) => (
-                <View key={driver.id} style={{ flexDirection: 'row', alignItems: 'center', padding: 5 }}>
-                  <Button
-                    title={formData.driver_id === driver.id.toString() ? '●' : '○'}
-                    onPress={() => setFormData(prev => ({ ...prev, driver_id: driver.id.toString() }))}
-                  />
-                  <Text style={{ marginLeft: 10 }}>{driver.name} ({driver.license_number})</Text>
+            {mode === 'edit' ? (
+              <>
+                <Text style={styles.label}>Driver (Selected)</Text>
+                <View style={{ backgroundColor: '#e9ecef', borderRadius: 5, padding: 10, marginBottom: 10 }}>
+                  {(() => {
+                    const selectedDriver = drivers.find((d: any) => d.id.toString() === formData.driver_id);
+                    return selectedDriver ? (
+                      <Text style={{ fontWeight: 'bold' }}>
+                        {selectedDriver.first_name} {selectedDriver.last_name} ({selectedDriver.license_number})
+                      </Text>
+                    ) : (
+                      <Text>Driver ID: {formData.driver_id}</Text>
+                    );
+                  })()}
                 </View>
-              ))}
-            </View>
+              </>
+            ) : (
+              <>
+                <Text style={styles.label}>Driver *</Text>
+                <View style={{ backgroundColor: '#f5f5f5', borderRadius: 5, marginBottom: 10 }}>
+                  {drivers.map((driver: any) => (
+                    <View key={driver.id} style={{ flexDirection: 'row', alignItems: 'center', padding: 5 }}>
+                      <Button
+                        title={formData.driver_id === driver.id.toString() ? '●' : '○'}
+                        onPress={() => setFormData(prev => ({ ...prev, driver_id: driver.id.toString() }))}
+                      />
+                      <Text style={{ marginLeft: 10 }}>{driver.first_name} {driver.last_name} ({driver.license_number})</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
 
-            <Text style={styles.label}>Vehicle *</Text>
+            <Text style={styles.label}>Vehicle * {mode === 'edit' ? '(Change Assignment)' : ''}</Text>
             <View style={{ backgroundColor: '#f5f5f5', borderRadius: 5, marginBottom: 10 }}>
-              {vehicles.map((vehicle: any) => (
-                <View key={vehicle.id} style={{ flexDirection: 'row', alignItems: 'center', padding: 5 }}>
-                  <Button
-                    title={formData.vehicle_id === vehicle.id.toString() ? '●' : '○'}
-                    onPress={() => setFormData(prev => ({ ...prev, vehicle_id: vehicle.id.toString() }))}
-                  />
-                  <Text style={{ marginLeft: 10 }}>{vehicle.license_plate} - {vehicle.model}</Text>
-                </View>
-              ))}
+              {vehicles.map((vehicle: any) => {
+                const isSelected = formData.vehicle_id === vehicle.id.toString();
+                return (
+                  <View key={vehicle.id} style={{ 
+                    flexDirection: 'row', 
+                    alignItems: 'center', 
+                    padding: 5,
+                    backgroundColor: isSelected ? '#d4edda' : 'transparent',
+                    borderRadius: 3
+                  }}>
+                    <Button
+                      title={isSelected ? '●' : '○'}
+                      onPress={() => setFormData(prev => ({ ...prev, vehicle_id: vehicle.id.toString() }))}
+                    />
+                    <Text style={{ marginLeft: 10, fontWeight: isSelected ? 'bold' : 'normal' }}>
+                      {vehicle.license_plate} - {vehicle.model}
+                      {isSelected && mode === 'edit' ? ' (Currently Assigned)' : ''}
+                    </Text>
+                  </View>
+                );
+              })}
             </View>
 
             <Text style={styles.label}>Assigned From *</Text>
