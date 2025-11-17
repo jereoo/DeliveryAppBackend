@@ -595,16 +595,16 @@ export default function App() {
             <TextInput style={styles.input} value={form.model} onChangeText={t => setForm((f: typeof form) => ({ ...f, model: t }))} placeholder="e.g., Transit, Hiace" />
 
             <Text style={styles.label}>Year *</Text>
-            <TextInput 
-              style={styles.input} 
-              value={form.year === 0 ? '' : form.year.toString()} 
+            <TextInput
+              style={styles.input}
+              value={form.year === 0 ? '' : form.year.toString()}
               onChangeText={(text) => {
                 // Allow empty input while typing
                 if (text === '') {
                   setForm((f: typeof form) => ({ ...f, year: 0 }));
                   return;
                 }
-                
+
                 // Only allow numeric characters
                 const numericText = text.replace(/[^0-9]/g, '');
                 if (numericText.length <= 4) {
@@ -620,9 +620,9 @@ export default function App() {
                   }
                 }
               }}
-              placeholder="Enter year" 
-              keyboardType="numeric" 
-              maxLength={4} 
+              placeholder="Enter year"
+              keyboardType="numeric"
+              maxLength={4}
             />
 
             <Text style={styles.label}>VIN *</Text>
@@ -1534,9 +1534,7 @@ export default function App() {
       setLocalLoading(false);
     };
 
-    useEffect(() => {
-      refreshAssignments();
-    }, []);
+    // Note: Driver-Vehicle assignments are loaded by parent component, no need for useEffect here
 
     if (mode === 'create' || mode === 'edit') {
       return (
