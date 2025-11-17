@@ -30,3 +30,6 @@ last-token.txt
 __pycache__/
 venv/
 .pytest_cache/
+
+# Custom scripts directory
+360scripts/
