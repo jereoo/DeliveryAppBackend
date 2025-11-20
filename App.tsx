@@ -1587,9 +1587,9 @@ export default function App() {
               {vehicles.map((vehicle: any) => {
                 const isSelected = formData.vehicle_id === vehicle.id.toString();
                 return (
-                  <View key={vehicle.id} style={{ 
-                    flexDirection: 'row', 
-                    alignItems: 'center', 
+                  <View key={vehicle.id} style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
                     padding: 5,
                     backgroundColor: isSelected ? '#d4edda' : 'transparent',
                     borderRadius: 3
