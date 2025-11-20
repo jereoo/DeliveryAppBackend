@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'corsheaders',  # Re-enabled for mobile app
     'rest_framework',
     'delivery',
+    'address_validation',  # Address validation system
     'tests',  # Added for test discovery
 ]
 
