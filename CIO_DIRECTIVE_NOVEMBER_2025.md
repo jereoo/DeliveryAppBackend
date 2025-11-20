@@ -55,14 +55,15 @@ However, after reviewing our November 20th status report, the CIO has escalated 
 ## **IMMEDIATE RESTRICTIONS**
 
 ### ❌ **PROHIBITED ACTIVITIES** (Effective Immediately)
-- Any UI polish or cosmetic improvements to existing CRUD screens
-- Minor bug fixes that don't impact core functionality
+- New feature development unrelated to automation roadmap
+- Performance optimization of existing working features
 - Documentation updates unrelated to automation features
 - Refactoring existing working code for "best practices"
 - Feature requests from end users for basic functionality
 
 ### ✅ **AUTHORIZED WORK ONLY**
 - Automation roadmap implementation as outlined above
+- CRUD screen fixes required for core app functionality
 - Critical bug fixes that prevent system operation
 - Test implementation and coverage improvements
 - Security vulnerabilities and data integrity issues

@@ -341,4 +341,19 @@ Project viability review with CIO if substantial automation progress not demonst
 
 ---
 
-**IMMEDIATE ACTION REQUIRED**: Implement address validation system starting November 21, 2025. All team resources must focus exclusively on automation roadmap completion. No exceptions.
+## 🚫 **WORK RESTRICTIONS (CIO Directive)**
+
+### **PROHIBITED ACTIVITIES**
+- New feature development unrelated to automation roadmap
+- UI polish or cosmetic improvements beyond functional requirements
+- Performance optimization of existing working features
+- Documentation updates not related to automation
+
+### **AUTHORIZED WORK (CIO Clarification)**
+- ✅ CRUD screen fixes required for core app functionality
+- ✅ Critical bug fixes that prevent system operation
+- ✅ Automation roadmap implementation as outlined above
+
+---
+
+**IMMEDIATE ACTION REQUIRED**: Implement address validation system starting November 21, 2025. All team resources must focus exclusively on automation roadmap completion, with CRUD functionality fixes authorized as needed for core app operation.

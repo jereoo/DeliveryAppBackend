@@ -41,13 +41,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # 'corsheaders',  # Temporarily disabled
+    'corsheaders',  # Re-enabled for mobile app
     'rest_framework',
     'delivery',
+    'tests',  # Added for test discovery
 ]
 
 MIDDLEWARE = [
-    # 'corsheaders.middleware.CorsMiddleware',  # Temporarily disabled
+    'corsheaders.middleware.CorsMiddleware',  # Re-enabled for mobile app
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -156,7 +157,8 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,                # optional: old refresh token becomes invalid
 }
 
-# CORS settings for React frontend
+# CORS settings for React frontend and mobile app
+CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins for development
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -164,6 +166,11 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3001",
     "http://localhost:8082",
     "http://127.0.0.1:8082",
+    "http://localhost:8081",
+    "http://127.0.0.1:8081",
+    "http://192.168.1.69:8081",
+    "http://192.168.1.77:8081",
+    "http://192.168.1.68:19000",  # Expo dev server
 ]
 
 CORS_ALLOW_CREDENTIALS = True

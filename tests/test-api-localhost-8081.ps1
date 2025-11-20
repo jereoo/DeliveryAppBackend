@@ -2,7 +2,7 @@
 Write-Host "=== DELIVERY APP API ENDPOINT TESTING ===" -ForegroundColor Green
 Write-Host ""
 
-$baseUrl = "http://192.168.1.69:8081"
+$baseUrl = "http://127.0.0.1:8081"
 $headers = @{ 'Content-Type' = 'application/json' }
 
 # Step 1: Get Authentication Token
