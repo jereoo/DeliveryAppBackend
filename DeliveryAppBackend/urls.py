@@ -30,4 +30,5 @@ urlpatterns = [
     path('', health_check, name='health_check'),  # Root URL health check
     path('admin/', admin.site.urls),
     path('api/', include('delivery.urls')),  # Include delivery app URLs
+    path('api/address-validation/', include('address_validation.urls')),  # Include address validation URLs
 ]

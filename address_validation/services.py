@@ -15,12 +15,28 @@ logger = logging.getLogger(__name__)
 
 
 class AddressValidationService:
-    """Main service for address validation"""
+    """Main service for address validation with LIVE Google Maps integration"""
     
     def __init__(self):
-        self.google_client = None
-        if hasattr(settings, 'GOOGLE_MAPS_API_KEY') and settings.GOOGLE_MAPS_API_KEY:
-            self.google_client = googlemaps.Client(key=settings.GOOGLE_MAPS_API_KEY)
+        """Initialize the address validation service with LIVE Google Maps client"""
+        # Initialize Google Maps client with environment variable
+        import os
+        api_key = os.getenv('GOOGLE_MAPS_API_KEY') or getattr(settings, 'GOOGLE_MAPS_API_KEY', None)
+        
+        if api_key:
+            try:
+                import googlemaps
+                self.google_client = googlemaps.Client(key=api_key)
+                logger.info("Google Maps client initialized successfully")
+            except ImportError:
+                logger.error("googlemaps library not installed. Install with: pip install googlemaps")
+                self.google_client = None
+            except Exception as e:
+                logger.error(f"Failed to initialize Google Maps client: {e}")
+                self.google_client = None
+        else:
+            self.google_client = None
+            logger.warning("GOOGLE_MAPS_API_KEY not configured - using basic validation only")
     
     def validate_address(self, address_text: str, country_hint: str = 'US') -> ValidatedAddress:
         """
@@ -158,9 +174,11 @@ class AddressValidationService:
             return {}
     
     def _validate_with_google_maps(self, address: ValidatedAddress) -> None:
-        """Validate address using Google Maps Address Validation API"""
+        """Validate address using LIVE Google Maps Geocoding API"""
+        start_time = time.time()
+        
         try:
-            # Use Google Maps Geocoding API (Address Validation API alternative)
+            # LIVE Google Maps Geocoding API call
             geocode_result = self.google_client.geocode(address.original_address)
             
             if geocode_result and len(geocode_result) > 0:
@@ -178,20 +196,67 @@ class AddressValidationService:
                 components = result['address_components']
                 self._parse_google_components(address, components)
                 
-                # Set validation status
-                address.validation_status = 'valid'
+                # Set validation status based on location type
+                location_type = result['geometry'].get('location_type', 'APPROXIMATE')
+                if location_type in ['ROOFTOP', 'RANGE_INTERPOLATED']:
+                    address.validation_status = 'valid'
+                    address.confidence_score = 0.95 if location_type == 'ROOFTOP' else 0.85
+                else:
+                    address.validation_status = 'partial'
+                    address.confidence_score = 0.7
+                    
                 address.validation_source = 'google'
-                address.confidence_score = 0.9  # Google results are generally high confidence
+                
+                # Log successful validation
+                processing_time = time.time() - start_time
+                AddressValidationLog.objects.create(
+                    address=address,
+                    validation_source='google',
+                    request_data={'original_address': address.original_address},
+                    response_data=result,
+                    success=True,
+                    processing_time=processing_time
+                )
                 
             else:
+                # No results from Google - mark as invalid
                 address.validation_status = 'invalid'
                 address.validation_source = 'google'
                 address.confidence_score = 0.0
                 
+                processing_time = time.time() - start_time
+                AddressValidationLog.objects.create(
+                    address=address,
+                    validation_source='google',
+                    request_data={'original_address': address.original_address},
+                    response_data={'results': []},
+                    success=False,
+                    error_message='No geocoding results found',
+                    processing_time=processing_time
+                )
+                
         except Exception as e:
             logger.error(f"Google Maps validation failed: {e}")
+            processing_time = time.time() - start_time
+            
+            # Log the error
+            AddressValidationLog.objects.create(
+                address=address,
+                validation_source='google',
+                request_data={'original_address': address.original_address},
+                response_data={},
+                success=False,
+                error_message=str(e),
+                processing_time=processing_time
+            )
+            
+            # Fall back to usaddress parsing
+            logger.info(f"Falling back to usaddress parsing for: {address.original_address}")
+            parsed_address = self._parse_us_address(address.original_address)
+            self._update_address_components(address, parsed_address)
             address.validation_status = 'partial'
-            address.validation_source = 'usaddress'  # Fall back to usaddress
+            address.validation_source = 'usaddress'
+            address.confidence_score = 0.6
     
     def _parse_google_components(self, address: ValidatedAddress, components: list) -> None:
         """Parse Google Maps address components"""
@@ -241,14 +306,14 @@ def validate_address(address_text: str, country_hint: str = 'US') -> ValidatedAd
 
 def get_validation_statistics() -> Dict:
     """Get address validation statistics"""
-    from django.db.models import Count
+    from django.db.models import Count, Q
     
     stats = ValidatedAddress.objects.aggregate(
         total=Count('id'),
-        valid=Count('id', filter=models.Q(validation_status='valid')),
-        invalid=Count('id', filter=models.Q(validation_status='invalid')),
-        partial=Count('id', filter=models.Q(validation_status='partial')),
-        pending=Count('id', filter=models.Q(validation_status='pending'))
+        valid=Count('id', filter=Q(validation_status='valid')),
+        invalid=Count('id', filter=Q(validation_status='invalid')),
+        partial=Count('id', filter=Q(validation_status='partial')),
+        pending=Count('id', filter=Q(validation_status='pending'))
     )
     
     # Calculate percentages

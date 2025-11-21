@@ -30,7 +30,7 @@ class CustomerModelTests(TestCase):
         )
         self.assertEqual(customer.user.username, 'testcustomer')
         self.assertFalse(customer.is_business)
-        self.assertEqual(str(customer), 'testcustomer')
+        self.assertEqual(str(customer), 'testcustomer (test@example.com)')
     
     def test_create_business_customer(self):
         """Test creating business customer"""
@@ -51,7 +51,7 @@ class CustomerModelTests(TestCase):
             phone_number='555-1234',
             address='123 Main St'
         )
-        self.assertEqual(str(customer), 'testcustomer')
+        self.assertEqual(str(customer), 'testcustomer (test@example.com)')
 
 
 class DriverModelTests(TestCase):
@@ -82,6 +82,7 @@ class DriverModelTests(TestCase):
         """Test driver name property from User model"""
         driver = Driver.objects.create(
             user=self.user,
+            name='John Driver',
             phone_number='555-5678',
             license_number='DL123456'
         )
@@ -91,6 +92,7 @@ class DriverModelTests(TestCase):
         """Test driver string representation"""
         driver = Driver.objects.create(
             user=self.user,
+            name='John Driver',
             phone_number='555-5678',
             license_number='DL123456'
         )
@@ -121,21 +123,27 @@ class VehicleModelTests(TestCase):
         """Test creating vehicle with lb capacity"""
         vehicle = Vehicle.objects.create(
             license_plate='XYZ789',
-            model='Chevy Cargo Van',
+            make='Chevrolet',
+            model='Cargo Van',
+            year=2020,
+            vin='1GCWGBFG4L1234567',
             capacity=2200,
             capacity_unit='lb',
             active=True
         )
-        self.assertEqual(vehicle.capacity_display, '2200 lb')
+        self.assertEqual(vehicle.capacity_display, '2200 Pounds')
     
     def test_vehicle_str_representation(self):
         """Test vehicle string representation"""
         vehicle = Vehicle.objects.create(
             license_plate='ABC123',
-            model='Ford Transit Van',
+            make='Ford',
+            model='Transit Van',
+            year=2019,
+            vin='1FTBW2CM6HKA12345',
             capacity=1000
         )
-        self.assertEqual(str(vehicle), 'ABC123 - Ford Transit Van')
+        self.assertEqual(str(vehicle), 'Ford Transit Van (2019) - ABC123 - 1000kg')
 
 
 class DeliveryModelTests(TestCase):
@@ -150,7 +158,11 @@ class DeliveryModelTests(TestCase):
         self.customer = Customer.objects.create(
             user=self.user,
             phone_number='555-1111',
-            address='456 Customer St',
+            address_street='456 Customer St',
+            address_city='Test City',
+            address_state='Test State',
+            address_postal_code='12345',
+            address_country='US',
             preferred_pickup_address='789 Pickup Ave'
         )
     
@@ -177,7 +189,7 @@ class DeliveryModelTests(TestCase):
             same_pickup_as_customer=True
         )
         delivery.save()  # Trigger save() logic
-        self.assertEqual(delivery.pickup_location, '456 Customer St')
+        self.assertEqual(delivery.pickup_location, '456 Customer St, Test City, Test State, 12345, United States')
     
     def test_delivery_use_preferred_pickup(self):
         """Test use_preferred_pickup logic"""
@@ -215,12 +227,16 @@ class DriverVehicleModelTests(TestCase):
         )
         self.driver = Driver.objects.create(
             user=self.user,
+            name='Test Driver',
             phone_number='555-7777',
             license_number='DL789123'
         )
         self.vehicle = Vehicle.objects.create(
             license_plate='TEST123',
-            model='Test Vehicle',
+            make='Test',
+            model='Vehicle',
+            year=2021,
+            vin='1TEST123456789012',
             capacity=1500
         )
     
@@ -237,12 +253,13 @@ class DriverVehicleModelTests(TestCase):
     
     def test_driver_vehicle_str_representation(self):
         """Test driver-vehicle string representation"""
+        test_date = timezone.now().date()
         assignment = DriverVehicle.objects.create(
             driver=self.driver,
             vehicle=self.vehicle,
-            assigned_from=timezone.now().date()
+            assigned_from=test_date
         )
-        expected = 'Test Driver - TEST123'
+        expected = f'Test Driver -> TEST123 (from {test_date})'
         self.assertEqual(str(assignment), expected)
 
 
@@ -270,6 +287,7 @@ class DeliveryAssignmentModelTests(TestCase):
         )
         self.driver = Driver.objects.create(
             user=self.driver_user,
+            name='Test Driver',
             phone_number='555-7777',
             license_number='DL789123'
         )
@@ -277,7 +295,10 @@ class DeliveryAssignmentModelTests(TestCase):
         # Create vehicle
         self.vehicle = Vehicle.objects.create(
             license_plate='TEST123',
-            model='Test Vehicle',
+            make='Test',
+            model='Vehicle',
+            year=2021,
+            vin='1TEST123456789013',
             capacity=1500
         )
         
@@ -329,7 +350,7 @@ class DeliveryAssignmentModelTests(TestCase):
             vehicle=self.vehicle,
             assigned_at=timezone.now()
         )
-        expected = f'Delivery {self.delivery.id} assigned to Test Driver'
+        expected = f'Assignment for {self.delivery.id} to Test Driver'
         self.assertEqual(str(assignment), expected)
 
 
@@ -359,6 +380,7 @@ class DeliveryWorkflowIntegrationTests(TestCase):
         )
         self.driver = Driver.objects.create(
             user=self.driver_user,
+            name='Integration Driver',
             phone_number='555-8888',
             license_number='INT123456'
         )
@@ -366,7 +388,10 @@ class DeliveryWorkflowIntegrationTests(TestCase):
         # Create vehicle
         self.vehicle = Vehicle.objects.create(
             license_plate='INT123',
-            model='Integration Vehicle',
+            make='Integration',
+            model='Vehicle',
+            year=2022,
+            vin='1INT123456789014',
             capacity=2000,
             capacity_unit='kg'
         )

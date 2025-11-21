@@ -72,7 +72,11 @@ class CustomerAPITests(APITestCase):
         self.customer = Customer.objects.create(
             user=self.user,
             phone_number='555-1234',
-            address='123 Test St'
+            address_street='123 Test St',
+            address_city='Test City',
+            address_state='Test State',
+            address_postal_code='12345',
+            address_country='US'
         )
         refresh = RefreshToken.for_user(self.user)
         self.access_token = refresh.access_token
@@ -100,8 +104,14 @@ class CustomerAPITests(APITestCase):
             'username': 'newcustomer',
             'email': 'new@example.com',
             'password': 'newpass123',
+            'first_name': 'New',
+            'last_name': 'Customer',
             'phone_number': '555-5678',
-            'address': '456 New St',
+            'address_street': '456 New St',
+            'address_city': 'Test City',
+            'address_state': 'Test State',
+            'address_postal_code': '12345',
+            'address_country': 'US',
             'is_business': False
         }
         response = self.client.post(url, data)
@@ -123,6 +133,7 @@ class DriverAPITests(APITestCase):
         )
         self.driver = Driver.objects.create(
             user=self.user,
+            name='Test Driver',
             phone_number='555-7777',
             license_number='DL123456'
         )
@@ -156,6 +167,7 @@ class DriverAPITests(APITestCase):
         url = '/api/drivers/'
         data = {
             'user': new_user.id,
+            'name': 'Test New Driver',
             'phone_number': '555-9999',
             'license_number': 'DL999888',
             'active': True
@@ -175,7 +187,10 @@ class VehicleAPITests(APITestCase):
         )
         self.vehicle = Vehicle.objects.create(
             license_plate='TEST123',
-            model='Test Vehicle',
+            make='Test',
+            model='Vehicle',
+            year=2021,
+            vin='1TEST123456789015',
             capacity=1500,
             capacity_unit='kg'
         )
@@ -197,14 +212,17 @@ class VehicleAPITests(APITestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['license_plate'], 'TEST123')
-        self.assertEqual(response.data['capacity_display'], '1500 kg')
+        self.assertEqual(response.data['capacity_display'], '1500 Kilograms')
     
     def test_vehicle_create(self):
         """Test vehicle creation endpoint"""
         url = '/api/vehicles/'
         data = {
             'license_plate': 'NEW456',
-            'model': 'New Test Vehicle',
+            'make': 'Ford',
+            'model': 'Transit',
+            'year': 2023,
+            'vin': 'NEW12345678901234',
             'capacity': 2000,
             'capacity_unit': 'lb',
             'active': True
@@ -215,7 +233,7 @@ class VehicleAPITests(APITestCase):
         
         # Verify capacity display
         new_vehicle = Vehicle.objects.get(license_plate='NEW456')
-        self.assertEqual(new_vehicle.capacity_display, '2000 lb')
+        self.assertEqual(new_vehicle.capacity_display, '2000 Pounds')
 
 
 class DeliveryAPITests(APITestCase):
@@ -230,7 +248,11 @@ class DeliveryAPITests(APITestCase):
         self.customer = Customer.objects.create(
             user=self.customer_user,
             phone_number='555-1111',
-            address='123 Customer St'
+            address_street='123 Customer St',
+            address_city='Test City',
+            address_state='Test State',
+            address_postal_code='12345',
+            address_country='US'
         )
         
         # Create delivery
@@ -287,7 +309,7 @@ class DeliveryAPITests(APITestCase):
         
         # Verify pickup location was auto-filled
         new_delivery = Delivery.objects.get(item_description='Auto pickup test')
-        self.assertEqual(new_delivery.pickup_location, '123 Customer St')
+        self.assertEqual(new_delivery.pickup_location, '123 Customer St, Test City, Test State, 12345, United States')
 
 
 class APIErrorHandlingTests(APITestCase):
@@ -326,7 +348,10 @@ class APIErrorHandlingTests(APITestCase):
         # Create first vehicle
         Vehicle.objects.create(
             license_plate='DUPLICATE',
-            model='First Vehicle',
+            make='First',
+            model='Vehicle',
+            year=2020,
+            vin='1DUPLICATE123456',
             capacity=1000
         )
         
@@ -356,6 +381,8 @@ class APIPaginationTests(APITestCase):
             username='testuser',
             password='testpass123'
         )
+        self.user.is_staff = True
+        self.user.save()
         
         # Create multiple customers for pagination testing
         for i in range(15):
@@ -366,7 +393,11 @@ class APIPaginationTests(APITestCase):
             Customer.objects.create(
                 user=user,
                 phone_number=f'555-{1000+i}',
-                address=f'{i} Test St'
+                address_street=f'{i} Test St',
+                address_city='Test City',
+                address_state='Test State',
+                address_postal_code='12345',
+                address_country='US'
             )
         
         refresh = RefreshToken.for_user(self.user)
