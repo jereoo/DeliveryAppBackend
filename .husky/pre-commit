@@ -1,0 +1,35 @@
+#!/bin/sh
+# CIO ZERO TOLERANCE - NO 200-ERROR COMMITS
+. "$(dirname "$0")/_/husky.sh"
+
+echo "🚨 CIO PRE-COMMIT CHECK - ZERO TOLERANCE FOR ERRORS"
+
+# Run type checking
+echo "📝 Running TypeScript check..."
+npm run typecheck
+if [ $? -ne 0 ]; then
+  echo "❌ COMMIT BLOCKED: TypeScript errors found"
+  echo "💡 Fix all type errors before committing"
+  exit 1
+fi
+
+# Run linting
+echo "🔍 Running ESLint..."
+npm run lint
+if [ $? -ne 0 ]; then
+  echo "❌ COMMIT BLOCKED: Linting errors found"
+  echo "💡 Run 'npm run lint -- --fix' to auto-fix"
+  exit 1
+fi
+
+# Run tests
+echo "🧪 Running tests..."
+npm test
+if [ $? -ne 0 ]; then
+  echo "❌ COMMIT BLOCKED: Tests failing"
+  echo "💡 Fix all failing tests before committing"
+  exit 1
+fi
+
+echo "✅ All checks passed - commit approved"
+echo "🎉 CIO compliance maintained"

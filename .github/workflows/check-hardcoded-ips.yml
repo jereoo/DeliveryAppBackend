@@ -1,0 +1,70 @@
+# CIO DIRECTIVE – PERMANENT FIX FOR DAILY NETWORK ERROR – NOV 20 2025
+name: "Block Hardcoded IPs"
+
+on:
+  pull_request:
+    paths:
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.js'
+      - '**/*.jsx'
+      - '**/*.json'
+
+jobs:
+  check-hardcoded-ips:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Check for hardcoded IPs
+      run: |
+        echo "🔍 CIO DIRECTIVE: Scanning for hardcoded IPs..."
+        
+        # Define forbidden patterns
+        PATTERNS=(
+          "192\.168\.1\.[0-9]+"
+          "localhost:8081"
+          "127\.0\.0\.1:8081"
+          "http://192\.168\."
+          "192\.168\.1\.68"
+        )
+        
+        # Initialize violation flag
+        VIOLATIONS_FOUND=false
+        
+        # Check each pattern
+        for pattern in "${PATTERNS[@]}"; do
+          echo "🚫 Checking pattern: $pattern"
+          
+          # Find files containing the pattern
+          matches=$(grep -r -l --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.json" "$pattern" . || true)
+          
+          if [ ! -z "$matches" ]; then
+            echo "❌ HARDCODED IP FOUND IN:"
+            echo "$matches"
+            VIOLATIONS_FOUND=true
+          fi
+        done
+        
+        if [ "$VIOLATIONS_FOUND" = true ]; then
+          echo ""
+          echo "🚨 CIO DIRECTIVE VIOLATION: HARDCODED IPs DETECTED"
+          echo "🔧 Required fixes:"
+          echo "1. Replace hardcoded IPs with environment variables"
+          echo "2. Use API_URL from src/config/api.ts"
+          echo "3. Always use tunnel mode: expo start --tunnel"
+          echo ""
+          echo "❌ PULL REQUEST BLOCKED"
+          exit 1
+        else
+          echo "✅ No hardcoded IPs found - PR approved"
+        fi
+        
+    - name: Success message
+      if: success()
+      run: |
+        echo "🎉 All checks passed!"
+        echo "✅ No hardcoded network references found"
+        echo "🚀 Ready for deployment"

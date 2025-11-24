@@ -1,3 +1,5 @@
+import 'react-native-gesture-handler';
+
 // 🚚 DeliveryApp Mobile - KEYBOARD ISSUE FIXED
 // Copy this file as App.tsx to your DeliveryAppMobile directory
 // FIXES: Virtual keyboard blocking bottom form fields
@@ -22,6 +24,62 @@ import {
   TextInput,
   View
 } from 'react-native';
+import { API_URL, checkBackendHealth, getApiDebugInfo } from './src/config/api';
+
+// ========================================
+// NETWORK HEALTH BANNER COMPONENT
+// ========================================
+const NetworkHealthBanner = () => {
+  const [isBackendHealthy, setIsBackendHealthy] = useState<boolean | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
+
+  useEffect(() => {
+    checkHealth();
+    const interval = setInterval(checkHealth, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  const checkHealth = async () => {
+    const healthy = await checkBackendHealth();
+    setIsBackendHealthy(healthy);
+  };
+
+  if (isBackendHealthy === null) {
+    return (
+      <View style={[styles.healthBanner, styles.healthChecking]}>
+        <ActivityIndicator size="small" color="#6B7280" />
+        <Text style={styles.healthText}>Checking backend connection...</Text>
+      </View>
+    );
+  }
+
+  if (!isBackendHealthy) {
+    return (
+      <View style={[styles.healthBanner, styles.healthError]}>
+        <Text style={styles.healthErrorText}>❌ BACKEND UNREACHABLE</Text>
+        <Text style={styles.healthErrorSubtext}>API: {API_URL}</Text>
+        <Button
+          title={showDebug ? "Hide Debug" : "Show Debug"}
+          onPress={() => setShowDebug(!showDebug)}
+          color="#EF4444"
+        />
+        {showDebug && (
+          <View style={styles.debugInfo}>
+            <Text style={styles.debugText}>
+              {JSON.stringify(getApiDebugInfo(), null, 2)}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.healthBanner, styles.healthSuccess]}>
+      <Text style={styles.healthText}>✅ Backend Connected: {API_URL}</Text>
+    </View>
+  );
+};
 
 // ========================================
 // CUSTOMER DELIVERY HISTORY COMPONENT
@@ -1201,7 +1259,7 @@ export default function App() {
     const handleDelete = (driver: any) => {
       Alert.alert(
         'Confirm Delete',
-        `Are you sure you want to delete driver "${driver.name}"?`,
+        `Are you sure you want to delete driver "${driver.first_name} ${driver.last_name}"?`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -3766,6 +3824,7 @@ export default function App() {
   // Default/Fallback Screen
   return (
     <View style={styles.container}>
+      <NetworkHealthBanner />
       <Text>Default/Fallback Screen</Text>
     </View>
   );
@@ -3967,6 +4026,64 @@ const styles = StyleSheet.create({
   },
   keyboardPadding: {
     height: 200,
+  },
+  // Health Banner Styles - CIO DIRECTIVE
+  healthBanner: {
+    padding: 12,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  healthChecking: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#D1D5DB',
+    borderWidth: 1,
+  },
+  healthSuccess: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+    borderWidth: 1,
+  },
+  healthError: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#EF4444',
+    borderWidth: 2,
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
+  healthText: {
+    fontSize: 14,
+    color: '#374151',
+    marginLeft: 8,
+    fontWeight: '500',
+  },
+  healthErrorText: {
+    fontSize: 16,
+    color: '#EF4444',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  healthErrorSubtext: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 8,
+    fontFamily: 'monospace',
+  },
+  debugInfo: {
+    backgroundColor: '#F9FAFB',
+    padding: 8,
+    borderRadius: 4,
+    marginTop: 8,
+  },
+  debugText: {
+    fontSize: 10,
+    color: '#374151',
+    fontFamily: 'monospace',
   },
   // ...add any other styles used in your JSX...
 });

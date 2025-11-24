@@ -1,0 +1,25 @@
+{
+  "extends": [
+    "expo"
+  ],
+  "rules": {
+    "no-unused-vars": "error",
+    "no-console": "warn"
+  },
+  "env": {
+    "jest": true,
+    "node": true,
+    "browser": true
+  },
+  "overrides": [
+    {
+      "files": [
+        "**/*.test.ts",
+        "**/*.test.tsx"
+      ],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ]
+}

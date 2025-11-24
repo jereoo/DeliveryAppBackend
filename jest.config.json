@@ -1,0 +1,30 @@
+{
+  "preset": "react-native",
+  "setupFilesAfterEnv": [
+    "<rootDir>/jest.setup.ts"
+  ],
+  "testMatch": [
+    "**/__tests__/**/*.test.(ts|tsx)",
+    "**/?(*.)+(spec|test).(ts|tsx)"
+  ],
+  "collectCoverageFrom": [
+    "src/**/*.{ts,tsx}",
+    "!src/**/*.d.ts",
+    "!src/__tests__/**",
+    "!src/**/*.stories.{ts,tsx}"
+  ],
+  "coverageThreshold": {
+    "global": {
+      "branches": 30,
+      "functions": 30,
+      "lines": 30,
+      "statements": 30
+    }
+  },
+  "moduleNameMapper": {
+    "^@/(.*)$": "<rootDir>/src/$1"
+  },
+  "transformIgnorePatterns": [
+    "node_modules/(?!(react-native|@react-native|expo|@expo|@testing-library)/)"
+  ]
+}
