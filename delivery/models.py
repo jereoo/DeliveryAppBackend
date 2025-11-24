@@ -152,17 +152,51 @@ class Delivery(models.Model):
 
     
 class Driver(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
-    name = models.CharField(max_length=255)
+    # CIO DIRECTIVE: Fixed OneToOneField relationship - PROTECT prevents cascade deletion
+    user = models.OneToOneField(User, on_delete=models.PROTECT, related_name='driver_profile')
+    
+    # NEW: Separate first_name, last_name fields (mirror auth_user)
+    first_name = models.CharField(max_length=150, blank=True, help_text='Driver first name')
+    last_name = models.CharField(max_length=150, blank=True, help_text='Driver last name')
+    
+    # DEPRECATED: Legacy name field - will be removed after migration
+    name = models.CharField(max_length=255, blank=True, help_text='DEPRECATED: Use user.first_name + user.last_name')
+    
     phone_number = models.CharField(max_length=20)
     license_number = models.CharField(max_length=50, unique=True)
     active = models.BooleanField(default=True)
 
+    def clean(self):
+        """CIO DIRECTIVE: Validate that every driver has a User account"""
+        from django.core.exceptions import ValidationError
+        if not self.user_id:
+            raise ValidationError('Driver must be linked to a User account. NULL user_id not allowed.')
+    
+    def save(self, *args, **kwargs):
+        """Override save to enforce validation"""
+        self.clean()
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return self.name
+        if self.user and (self.user.first_name or self.user.last_name):
+            return f"{self.user.first_name} {self.user.last_name}".strip()
+        return self.name or f"Driver #{self.id}"
+
+    @property
+    def full_name(self):
+        """Get full name from User model or fallback to legacy name"""
+        if self.user and (self.user.first_name or self.user.last_name):
+            return f"{self.user.first_name} {self.user.last_name}".strip()
+        return self.name or 'Unknown Driver'
 
     class Meta:
         ordering = ['-id']
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(user__isnull=False),
+                name='driver_must_have_user'
+            )
+        ]
 
 
 class Vehicle(models.Model):

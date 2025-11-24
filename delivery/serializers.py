@@ -180,9 +180,8 @@ class DeliveryCreateSerializer(serializers.ModelSerializer):
 
 
 class DriverSerializer(serializers.ModelSerializer):
-    # User model fields - using SerializerMethodField to handle null user relationships
-    first_name = serializers.SerializerMethodField()
-    last_name = serializers.SerializerMethodField()
+    # CIO DIRECTIVE: Direct access to User model fields via Driver model fields
+    # No longer using SerializerMethodField - all drivers now have User accounts
     
     # Optional vehicle assignment fields
     vehicle_id = serializers.IntegerField(write_only=True, required=False, help_text="ID of vehicle to assign to this driver")
@@ -195,8 +194,9 @@ class DriverSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Driver
-        fields = ['id', 'name', 'first_name', 'last_name', 'phone_number', 'license_number', 'active', 
+        fields = ['id', 'first_name', 'last_name', 'phone_number', 'license_number', 'active', 
                  'vehicle_id', 'assigned_from', 'current_vehicle', 'current_vehicle_plate', 'current_vehicle_model']
+        # CIO DIRECTIVE: Removed deprecated 'name' field - use first_name + last_name from User model
     
     def get_current_vehicle(self, obj):
         """Get the currently assigned vehicle ID"""
@@ -237,20 +237,24 @@ class DriverSerializer(serializers.ModelSerializer):
         
         return current_assignment.vehicle.model if current_assignment and current_assignment.vehicle else None
     
-    def get_first_name(self, obj):
-        """Get first name from User model if exists"""
-        return obj.user.first_name if obj.user else ''
-    
-    def get_last_name(self, obj):
-        """Get last name from User model if exists"""
-        return obj.user.last_name if obj.user else ''
+    # CIO DIRECTIVE: Removed get_first_name/get_last_name methods
+    # Direct field access to driver.first_name and driver.last_name now available
     
     def create(self, validated_data):
         from django.utils import timezone
+        from django.contrib.auth.models import User
         
         # Extract vehicle assignment data
         vehicle_id = validated_data.pop('vehicle_id', None)
         assigned_from = validated_data.pop('assigned_from', timezone.now().date())
+        
+        # CIO DIRECTIVE: Every driver must have a User account
+        # Extract user data from validated_data
+        first_name = validated_data.get('first_name', '')
+        last_name = validated_data.get('last_name', '')
+        
+        if not validated_data.get('user'):
+            raise serializers.ValidationError('Driver must be linked to a User account. Create User first or use DriverRegistrationSerializer.')
         
         # Create the driver
         driver = Driver.objects.create(**validated_data)
@@ -277,22 +281,21 @@ class DriverSerializer(serializers.ModelSerializer):
         vehicle_id = validated_data.pop('vehicle_id', None)
         assigned_from = validated_data.pop('assigned_from', timezone.now().date())
         
-        # Handle first_name and last_name from the request data
-        # These come directly in validated_data since mobile app sends them as flat fields
-        first_name = None
-        last_name = None
+        # CIO DIRECTIVE: Handle User model field updates
+        first_name = validated_data.pop('first_name', None)
+        last_name = validated_data.pop('last_name', None)
         
-        # Check initial_data for first_name and last_name (comes from mobile app)
-        if hasattr(self, 'initial_data'):
-            first_name = self.initial_data.get('first_name')
-            last_name = self.initial_data.get('last_name')
-        
-        # Update User model fields if user exists and name fields provided
-        if (first_name is not None or last_name is not None) and hasattr(instance, 'user') and instance.user:
+        # Update User model fields (every driver now has a user account)
+        if first_name is not None or last_name is not None:
+            if not instance.user:
+                raise serializers.ValidationError('Driver has no User account. This violates CIO directive - all drivers must have users.')
+            
             if first_name is not None:
                 instance.user.first_name = first_name
+                instance.first_name = first_name  # Update driver field too
             if last_name is not None:
                 instance.user.last_name = last_name
+                instance.last_name = last_name  # Update driver field too
             instance.user.save()
         
         # Update driver fields
@@ -532,8 +535,10 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
             first_name=user_data['first_name'],
             last_name=user_data['last_name']
         )
-        # Create driver with user link
-        validated_data['name'] = f"{user_data['first_name']} {user_data['last_name']}"
+        # CIO DIRECTIVE: Create driver with user link and populate first_name/last_name
+        validated_data['first_name'] = user_data['first_name'] 
+        validated_data['last_name'] = user_data['last_name']
+        # Remove deprecated name field assignment
         driver = Driver.objects.create(user=user, **validated_data, active=True)
         # Create vehicle
         vehicle = Vehicle.objects.create(**vehicle_data)

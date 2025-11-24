@@ -60,9 +60,33 @@ class DeliveryAdmin(admin.ModelAdmin):
 
 @admin.register(Driver)
 class DriverAdmin(admin.ModelAdmin):
-    list_display = ('name', 'phone_number', 'license_number', 'active')
+    # CIO DIRECTIVE: Use User model fields instead of deprecated name field
+    list_display = ('full_name_display', 'user_username', 'phone_number', 'license_number', 'active')
     list_filter = ('active',)
-    search_fields = ('name', 'license_number')
+    search_fields = ('user__username', 'user__first_name', 'user__last_name', 'user__email', 'license_number', 'phone_number')
+    
+    def full_name_display(self, obj):
+        """Display driver's full name from User model"""
+        if obj.user:
+            return f"{obj.user.first_name} {obj.user.last_name}".strip()
+        return obj.name  # Fallback to deprecated field during transition
+    full_name_display.short_description = 'Full Name'
+    
+    def user_username(self, obj):
+        """Display linked User username"""
+        return obj.user.username if obj.user else 'No User Account'
+    user_username.short_description = 'Username'
+    
+    # Remove deprecated name field from admin forms
+    fields = ('user', 'first_name', 'last_name', 'phone_number', 'license_number', 'active')
+    readonly_fields = ('first_name', 'last_name')  # These sync with User model
+    
+    def get_readonly_fields(self, request, obj=None):
+        """Make first_name and last_name readonly - they sync with User model"""
+        readonly = list(self.readonly_fields)
+        if obj and obj.user:  # If editing existing driver with user
+            readonly.extend(['first_name', 'last_name'])
+        return readonly
 
 @admin.register(Vehicle)
 class VehicleAdmin(admin.ModelAdmin):
@@ -75,10 +99,10 @@ class DeliveryAssignmentAdmin(admin.ModelAdmin):
     form = DeliveryAssignmentAdminForm
     list_display = ('delivery', 'driver', 'vehicle', 'assigned_at')
     list_filter = ('assigned_at',)
-    search_fields = ('delivery__id', 'driver__name', 'vehicle__license_plate')  # Updated from delivery__order_id
+    search_fields = ('delivery__id', 'driver__user__username', 'driver__user__first_name', 'driver__user__last_name', 'vehicle__license_plate')  # CIO DIRECTIVE: Use User fields
 
 @admin.register(DriverVehicle)
 class DriverVehicleAdmin(admin.ModelAdmin):
     list_display = ('driver', 'vehicle', 'assigned_from', 'assigned_to')
     list_filter = ('assigned_from', 'assigned_to')
-    search_fields = ('driver__name', 'vehicle__license_plate')
+    search_fields = ('driver__user__username', 'driver__user__first_name', 'driver__user__last_name', 'vehicle__license_plate')  # CIO DIRECTIVE: Use User fields

@@ -167,7 +167,8 @@ class DriverAPITests(APITestCase):
         url = '/api/drivers/'
         data = {
             'user': new_user.id,
-            'name': 'Test New Driver',
+            'first_name': 'Test',
+            'last_name': 'New Driver',
             'phone_number': '555-9999',
             'license_number': 'DL999888',
             'active': True
