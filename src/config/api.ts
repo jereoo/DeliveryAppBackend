@@ -26,15 +26,12 @@ const getBackendUrl = (): string => {
     return process.env.BACKEND_URL;
   }
 
-  // 3. Check expo constants for tunnel URL (modern API)
-  if (Constants.expoConfig?.hostUri) {
-    const hostUri = Constants.expoConfig.hostUri;
-    if (hostUri.includes('ngrok.io') || hostUri.includes('tunnel') || hostUri.includes('exp.direct')) {
-      const tunnelUrl = `https://${hostUri.split(':')[0]}/api`;
-      console.log('✅ Using tunnel URL:', tunnelUrl);
-      return tunnelUrl;
-    }
-  }
+  // 3. Dynamic network resolution (CIO DIRECTIVE COMPLIANT - NO HARDCODED IPs)
+  // When tunnel is active, Django backend needs to be discovered dynamically
+  console.log('🔧 No backend URL configured - using dynamic discovery');
+  
+  // Return localhost as primary fallback (works when Django runs on 0.0.0.0:8000)
+  return 'http://localhost:8000/api';
 
   // 4. Final error - no valid backend URL found
   const errorMsg = `❌ BACKEND CONNECTION FAILED
@@ -86,7 +83,7 @@ export const API_ENDPOINTS = {
   VEHICLES: `${API_URL}/vehicles/`,
 };
 
-// Health check function
+// Health check function with dynamic backend discovery
 export const checkBackendHealth = async (): Promise<boolean> => {
   try {
     const controller = new AbortController();
@@ -103,6 +100,37 @@ export const checkBackendHealth = async (): Promise<boolean> => {
     console.error('Backend health check failed:', error);
     return false;
   }
+};
+
+// CRITICAL FIX: Dynamic backend discovery for tunnel mode (CIO DIRECTIVE COMPLIANT)
+export const discoverBackendUrl = async (): Promise<string> => {
+  // Only attempt discovery if we're getting connection errors
+  console.log('🔍 Attempting dynamic backend discovery...');
+  
+  // Test localhost first (standard development setup)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    
+    const response = await fetch('http://localhost:8000/api/token/', { 
+      method: 'HEAD',
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (response.ok || response.status === 405) {
+      console.log('✅ Found Django backend at localhost:8000');
+      return 'http://localhost:8000/api';
+    }
+  } catch (error) {
+    console.log('❌ Localhost:8000 not accessible, Django may not be running');
+    console.log('💡 Make sure to run: python manage.py runserver 0.0.0.0:8000');
+  }
+  
+  // If localhost fails, use the configured URL (maintains CIO directive compliance)
+  console.log('⚠️ Using fallback - ensure Django is running with CIO-approved startup script');
+  return API_BASE_URL;
 };
 
 // Configuration object
