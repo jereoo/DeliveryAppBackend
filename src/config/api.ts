@@ -29,22 +29,10 @@ const getBackendUrl = (): string => {
   // 3. Dynamic network resolution (CIO DIRECTIVE COMPLIANT - NO HARDCODED IPs)
   // When tunnel is active, Django backend needs to be discovered dynamically
   console.log('🔧 No backend URL configured - using dynamic discovery');
-  
+
   // Return localhost as primary fallback (works when Django runs on 0.0.0.0:8000)
   return 'http://localhost:8000/api';
 
-  // 4. Final error - no valid backend URL found
-  const errorMsg = `❌ BACKEND CONNECTION FAILED
-  
-No valid backend URL found. Ensure:
-1. Django server is running on 0.0.0.0:8000
-2. Expo tunnel is active
-3. .env BACKEND_URL is set correctly
-
-Use only: ./start-fullstack.bat or F5 in VS Code`;
-
-  console.error(errorMsg);
-  throw new Error('Backend URL not configured. Use CIO-approved startup script.');
 };
 
 // Get the base URL for API calls
@@ -106,19 +94,19 @@ export const checkBackendHealth = async (): Promise<boolean> => {
 export const discoverBackendUrl = async (): Promise<string> => {
   // Only attempt discovery if we're getting connection errors
   console.log('🔍 Attempting dynamic backend discovery...');
-  
+
   // Test localhost first (standard development setup)
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
-    
-    const response = await fetch('http://localhost:8000/api/token/', { 
+
+    const response = await fetch('http://localhost:8000/api/token/', {
       method: 'HEAD',
       signal: controller.signal
     });
-    
+
     clearTimeout(timeoutId);
-    
+
     if (response.ok || response.status === 405) {
       console.log('✅ Found Django backend at localhost:8000');
       return 'http://localhost:8000/api';
@@ -127,7 +115,7 @@ export const discoverBackendUrl = async (): Promise<string> => {
     console.log('❌ Localhost:8000 not accessible, Django may not be running');
     console.log('💡 Make sure to run: python manage.py runserver 0.0.0.0:8000');
   }
-  
+
   // If localhost fails, use the configured URL (maintains CIO directive compliance)
   console.log('⚠️ Using fallback - ensure Django is running with CIO-approved startup script');
   return API_BASE_URL;

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<coverage generated="1763678621283" clover="3.2.0">
-  <project timestamp="1763678621283" name="All files">
-    <metrics statements="175" coveredstatements="61" conditionals="117" coveredconditionals="41" methods="26" coveredmethods="9" elements="318" coveredelements="111" complexity="0" loc="175" ncloc="175" packages="3" files="3" classes="3"/>
+<coverage generated="1764026728346" clover="3.2.0">
+  <project timestamp="1764026728346" name="All files">
+    <metrics statements="191" coveredstatements="61" conditionals="115" coveredconditionals="41" methods="28" coveredmethods="9" elements="334" coveredelements="111" complexity="0" loc="191" ncloc="191" packages="3" files="3" classes="3"/>
     <package name="components">
       <metrics statements="57" coveredstatements="22" conditionals="46" coveredconditionals="18" methods="9" coveredmethods="3"/>
       <file name="AddressAutocomplete.tsx" path="C:\Users\360WEB\DeliveryAppMobile\src\components\AddressAutocomplete.tsx">
@@ -66,37 +66,53 @@
       </file>
     </package>
     <package name="config">
-      <metrics statements="28" coveredstatements="0" conditionals="14" coveredconditionals="0" methods="4" coveredmethods="0"/>
+      <metrics statements="44" coveredstatements="0" conditionals="12" coveredconditionals="0" methods="6" coveredmethods="0"/>
       <file name="api.ts" path="C:\Users\360WEB\DeliveryAppMobile\src\config\api.ts">
-        <metrics statements="28" coveredstatements="0" conditionals="14" coveredconditionals="0" methods="4" coveredmethods="0"/>
+        <metrics statements="44" coveredstatements="0" conditionals="12" coveredconditionals="0" methods="6" coveredmethods="0"/>
         <line num="10" count="0" type="stmt"/>
-        <line num="12" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="13" count="0" type="stmt"/>
-        <line num="17" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="18" count="0" type="stmt"/>
-        <line num="22" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="23" count="0" type="stmt"/>
-        <line num="24" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="11" count="0" type="stmt"/>
+        <line num="18" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="19" count="0" type="stmt"/>
+        <line num="20" count="0" type="stmt"/>
+        <line num="24" count="0" type="cond" truecount="0" falsecount="2"/>
         <line num="25" count="0" type="stmt"/>
-        <line num="30" count="0" type="stmt"/>
+        <line num="26" count="0" type="stmt"/>
         <line num="31" count="0" type="stmt"/>
-        <line num="35" count="0" type="stmt"/>
-        <line num="38" count="0" type="stmt"/>
-        <line num="41" count="0" type="stmt"/>
-        <line num="71" count="0" type="stmt"/>
-        <line num="72" count="0" type="stmt"/>
-        <line num="73" count="0" type="stmt"/>
-        <line num="74" count="0" type="stmt"/>
-        <line num="76" count="0" type="stmt"/>
-        <line num="81" count="0" type="stmt"/>
-        <line num="82" count="0" type="stmt"/>
-        <line num="84" count="0" type="stmt"/>
-        <line num="85" count="0" type="stmt"/>
+        <line num="34" count="0" type="stmt"/>
+        <line num="37" count="0" type="stmt"/>
+        <line num="46" count="0" type="stmt"/>
+        <line num="47" count="0" type="stmt"/>
+        <line num="51" count="0" type="stmt"/>
+        <line num="54" count="0" type="stmt"/>
+        <line num="57" count="0" type="stmt"/>
+        <line num="87" count="0" type="stmt"/>
+        <line num="88" count="0" type="stmt"/>
+        <line num="89" count="0" type="stmt"/>
         <line num="90" count="0" type="stmt"/>
-        <line num="99" count="0" type="stmt"/>
+        <line num="92" count="0" type="stmt"/>
+        <line num="97" count="0" type="stmt"/>
+        <line num="98" count="0" type="stmt"/>
         <line num="100" count="0" type="stmt"/>
-        <line num="111" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="101" count="0" type="stmt"/>
+        <line num="106" count="0" type="stmt"/>
+        <line num="108" count="0" type="stmt"/>
+        <line num="111" count="0" type="stmt"/>
         <line num="112" count="0" type="stmt"/>
+        <line num="113" count="0" type="stmt"/>
+        <line num="115" count="0" type="stmt"/>
+        <line num="120" count="0" type="stmt"/>
+        <line num="122" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="123" count="0" type="stmt"/>
+        <line num="124" count="0" type="stmt"/>
+        <line num="127" count="0" type="stmt"/>
+        <line num="128" count="0" type="stmt"/>
+        <line num="132" count="0" type="stmt"/>
+        <line num="133" count="0" type="stmt"/>
+        <line num="137" count="0" type="stmt"/>
+        <line num="146" count="0" type="stmt"/>
+        <line num="147" count="0" type="stmt"/>
+        <line num="158" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="159" count="0" type="stmt"/>
       </file>
     </package>
     <package name="services">
