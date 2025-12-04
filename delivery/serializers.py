@@ -27,17 +27,16 @@ class CustomerSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         # Extract user data from validated_data
         user_data = validated_data.pop('user')
-        user = User.objects.create(
+        # CIO DIRECTIVE NOV 30 2025 – Use create_user to prevent accidental admin creation
+        user = User.objects.create_user(
             username=user_data.get('username'),
             email=user_data.get('email'),
             first_name=user_data.get('first_name', ''),
-            last_name=user_data.get('last_name', '')
+            last_name=user_data.get('last_name', ''),
+            password=user_data.get('password'),
+            is_staff=False,
+            is_superuser=False
         )
-        # Set password if provided
-        password = user_data.get('password')
-        if password:
-            user.set_password(password)
-            user.save()
         # Create the Customer instance
         customer = Customer.objects.create(user=user, **validated_data)
         return customer
@@ -116,13 +115,16 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
         user_data = validated_data.pop('user')
         
         # Create User
+        # CIO DIRECTIVE NOV 30 2025 – Customers must never be created as admins
         user = User.objects.create_user(
             username=user_data['username'],
             email=user_data['email'],
             password=user_data['password'],
             first_name=user_data.get('first_name', ''),
             last_name=user_data.get('last_name', ''),
-            is_active=True  # Fix: Ensure user account is active for login
+            is_active=True,  # Fix: Ensure user account is active for login
+            is_staff=False,
+            is_superuser=False
         )
         
         # Create Customer profile (skip model validation since we already validated)
@@ -194,7 +196,7 @@ class DriverSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Driver
-        fields = ['id', 'first_name', 'last_name', 'phone_number', 'license_number', 'active', 
+        fields = ['id', 'user', 'first_name', 'last_name', 'phone_number', 'license_number', 'active', 
                  'vehicle_id', 'assigned_from', 'current_vehicle', 'current_vehicle_plate', 'current_vehicle_model']
         # CIO DIRECTIVE: Removed deprecated 'name' field - use first_name + last_name from User model
     
@@ -253,7 +255,9 @@ class DriverSerializer(serializers.ModelSerializer):
         first_name = validated_data.get('first_name', '')
         last_name = validated_data.get('last_name', '')
         
-        if not validated_data.get('user'):
+        # Validate user exists (this is just extra safety - DRF foreign key validation should handle this)
+        user = validated_data.get('user')
+        if not user:
             raise serializers.ValidationError('Driver must be linked to a User account. Create User first or use DriverRegistrationSerializer.')
         
         # Create the driver
@@ -528,12 +532,15 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
             'active': True
         }
         # Create User
+        # CIO DIRECTIVE NOV 30 2025 – Drivers must never be created as admins
         user = User.objects.create_user(
             username=user_data['username'],
             email=user_data['email'],
             password=user_data['password'],
             first_name=user_data['first_name'],
-            last_name=user_data['last_name']
+            last_name=user_data['last_name'],
+            is_staff=False,
+            is_superuser=False
         )
         # CIO DIRECTIVE: Create driver with user link and populate first_name/last_name
         validated_data['first_name'] = user_data['first_name'] 
