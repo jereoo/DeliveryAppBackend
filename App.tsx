@@ -12,6 +12,7 @@ import 'react-native-gesture-handler';
  * 4. Test customer registration on phone - keyboard should no longer block fields
  */
 
+import Constants from 'expo-constants';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -1880,9 +1881,9 @@ export default function App() {
         };
 
         console.log('[DEBUG] RegisterAsDriverScreen: Registration payload:', JSON.stringify(registrationData, null, 2));
-        console.log('[DEBUG] RegisterAsDriverScreen: API endpoint:', `${API_BASE}/api/drivers/register/`);
+        console.log('[DEBUG] RegisterAsDriverScreen: API endpoint:', `${API_BASE}/drivers/register/`);
 
-        const response = await fetch(`${API_BASE}/api/drivers/register/`, {
+        const response = await fetch(`${API_BASE}/drivers/register/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -2112,17 +2113,13 @@ export default function App() {
   // All constants, useState, useEffect, and helper functions at the top
   // Dynamically detect local IP for API_BASE
   // FIXED: Use Django backend IP directly (not phone's IP)
-  // UPDATED: IP changed from 192.168.1.69 to 192.168.1.68
-  const [API_BASE, setApiBase] = useState('http://192.168.1.68:8081');
-  const [currentNetwork, setCurrentNetwork] = useState('Django Backend (192.168.1.68)');
-  // Optionally, you can keep fallback endpoints for manual override
+  // CIO DIRECTIVE: Use dynamic tunnel URL from environment variables
+  const [API_BASE, setApiBase] = useState(process.env.BACKEND_URL || Constants.expoConfig?.extra?.backendUrl || 'https://tunnel-not-configured.exp.direct');
+  const [currentNetwork, setCurrentNetwork] = useState('Expo Tunnel (Dynamic)');
+  // CIO DIRECTIVE: NO HARDCODED IPs - Use only tunnel URLs
   const NETWORK_ENDPOINTS = [
-    { url: API_BASE, name: 'Auto-detected' },
-    { url: 'http://192.168.1.68:8081', name: 'Current Backend IP' },
-    { url: 'http://192.168.1.77:8081', name: 'Alternative IP' },
-    { url: 'http://192.168.1.85:8081', name: 'Home Office Network' },
-    { url: 'http://192.168.1.87:8081', name: 'Home Office Network (Alt)' },
-    { url: 'http://172.20.10.6:8081', name: 'Mobile Hotspot' }
+    { url: API_BASE, name: 'Expo Tunnel (Primary)' },
+    { url: process.env.BACKEND_URL || Constants.expoConfig?.extra?.backendUrl || 'https://fallback.exp.direct', name: 'Tunnel Fallback' }
   ];
   const [currentScreen, setCurrentScreen] = useState('main');
   const [backendStatus, setBackendStatus] = useState('Checking...');
@@ -2213,8 +2210,8 @@ export default function App() {
 
     for (const endpoint of NETWORK_ENDPOINTS) {
       try {
-        console.log(`Testing endpoint: ${endpoint.url}/api/`);
-        const response = await fetch(`${endpoint.url}/api/`, {
+        console.log(`Testing endpoint: ${endpoint.url}/`);
+        const response = await fetch(`${endpoint.url}/`, {
           method: 'GET'
         });
 
@@ -2279,8 +2276,8 @@ export default function App() {
 
     setLoading(true);
     try {
-      console.log(`Attempting login to: ${API_BASE}/api/token/`);
-      const response = await fetch(`${API_BASE}/api/token/`, {
+      console.log(`Attempting login to: ${API_BASE}/token/`);
+      const response = await fetch(`${API_BASE}/token/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(loginForm)
@@ -2316,7 +2313,7 @@ export default function App() {
   const determineUserType = async (token: string) => {
     // Try customer profile first
     try {
-      const customerResponse = await fetch(`${API_BASE}/api/customers/me/`, {
+      const customerResponse = await fetch(`${API_BASE}/customers/me/`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (customerResponse.ok) {
@@ -2340,7 +2337,7 @@ export default function App() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/customers/register/`, {
+      const response = await fetch(`${API_BASE}/customers/register/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(customerForm)
@@ -2386,7 +2383,7 @@ export default function App() {
         name: `${driverForm.first_name} ${driverForm.last_name}`
       };
 
-      const response = await fetch(`${API_BASE}/api/drivers/register/`, {
+      const response = await fetch(`${API_BASE}/drivers/register/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(registrationData)
@@ -2437,7 +2434,7 @@ export default function App() {
 
   const loadDeliveries = async () => {
     try {
-      const response = await makeAuthenticatedRequest('/api/deliveries/');
+      const response = await makeAuthenticatedRequest('/deliveries/');
       if (response.ok) {
         const data = await response.json();
         setDeliveries(data.results || data);
@@ -2449,7 +2446,7 @@ export default function App() {
 
   const loadMyDeliveries = async () => {
     try {
-      const response = await makeAuthenticatedRequest('/api/customers/my_deliveries/');
+      const response = await makeAuthenticatedRequest('/customers/my_deliveries/');
       if (response.ok) {
         const data = await response.json();
         setDeliveries(data.results || data);
@@ -2461,7 +2458,7 @@ export default function App() {
 
   const loadCustomers = async () => {
     try {
-      const response = await makeAuthenticatedRequest('/api/customers/');
+      const response = await makeAuthenticatedRequest('/customers/');
       if (response.ok) {
         const data = await response.json();
         setCustomers(data.results || data);
@@ -2480,7 +2477,7 @@ export default function App() {
     console.log('[DEBUG] loadDrivers: Starting to load drivers');
     setDriversLoading(true);
     try {
-      const response = await makeAuthenticatedRequest('/api/drivers/');
+      const response = await makeAuthenticatedRequest('/drivers/');
       console.log('[DEBUG] loadDrivers: Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
@@ -2499,7 +2496,7 @@ export default function App() {
 
   const loadVehicles = async () => {
     try {
-      const response = await makeAuthenticatedRequest('/api/vehicles/');
+      const response = await makeAuthenticatedRequest('/vehicles/');
       if (response.ok) {
         const data = await response.json();
         setVehicles(data.results || data);
@@ -2511,7 +2508,7 @@ export default function App() {
 
   const loadAssignments = async () => {
     try {
-      const response = await makeAuthenticatedRequest('/api/assignments/');
+      const response = await makeAuthenticatedRequest('/assignments/');
       if (response.ok) {
         const data = await response.json();
         setAssignments(data.results || data);
@@ -2523,7 +2520,7 @@ export default function App() {
 
   const loadDriverVehicles = async () => {
     try {
-      const response = await makeAuthenticatedRequest('/api/driver-vehicles/');
+      const response = await makeAuthenticatedRequest('/driver-vehicles/');
       if (response.ok) {
         const data = await response.json();
         setDriverVehicles(data.results || data);
@@ -2568,7 +2565,7 @@ export default function App() {
         preferred_pickup_address: customerData.preferred_pickup_address || ''
       };
 
-      const response = await makeAuthenticatedRequest('/api/customers/', {
+      const response = await makeAuthenticatedRequest('/customers/', {
         method: 'POST',
         body: JSON.stringify(payload)
       });
@@ -2648,7 +2645,7 @@ export default function App() {
 
       // Always include password field in update, even if blank
       const payload = { ...customerData };
-      const endpoint = `/api/customers/${customerId}/`;
+      const endpoint = `/customers/${customerId}/`;
       console.log('[DEBUG] updateCustomer full URL:', API_BASE + endpoint);
 
       const response = await makeAuthenticatedRequest(endpoint, {
@@ -2707,7 +2704,7 @@ export default function App() {
   const deleteCustomer = async (customerId: any) => {
     setLoading(true);
     try {
-      const response = await makeAuthenticatedRequest(`/api/customers/${customerId}/`, {
+      const response = await makeAuthenticatedRequest(`/customers/${customerId}/`, {
         method: 'DELETE'
       });
 
@@ -2738,7 +2735,7 @@ export default function App() {
 
   const getCustomerDeliveries = async (customerId: any) => {
     try {
-      const response = await makeAuthenticatedRequest(`/api/customers/${customerId}/my_deliveries/`);
+      const response = await makeAuthenticatedRequest(`/customers/${customerId}/my_deliveries/`);
       if (response.ok) {
         const data = await response.json();
         return data.results || data;
@@ -2758,7 +2755,7 @@ export default function App() {
 
     setLoading(true);
     try {
-      const response = await makeAuthenticatedRequest('/api/deliveries/request_delivery/', {
+      const response = await makeAuthenticatedRequest('/deliveries/request_delivery/', {
         method: 'POST',
         body: JSON.stringify(deliveryForm)
       });
@@ -2788,7 +2785,7 @@ export default function App() {
   const createDelivery = async (deliveryData: any) => {
     setLoading(true);
     try {
-      const response = await makeAuthenticatedRequest('/api/deliveries/', {
+      const response = await makeAuthenticatedRequest('/deliveries/', {
         method: 'POST',
         body: JSON.stringify(deliveryData)
       });
@@ -2818,7 +2815,7 @@ export default function App() {
   const updateDelivery = async (deliveryId: any, deliveryData: any) => {
     setLoading(true);
     try {
-      const response = await makeAuthenticatedRequest(`/api/deliveries/${deliveryId}/`, {
+      const response = await makeAuthenticatedRequest(`/deliveries/${deliveryId}/`, {
         method: 'PATCH',
         body: JSON.stringify(deliveryData)
       });
@@ -2842,7 +2839,7 @@ export default function App() {
   const deleteDelivery = async (deliveryId: any) => {
     setLoading(true);
     try {
-      const response = await makeAuthenticatedRequest(`/api/deliveries/${deliveryId}/`, {
+      const response = await makeAuthenticatedRequest(`/deliveries/${deliveryId}/`, {
         method: 'DELETE'
       });
 
@@ -2875,7 +2872,7 @@ export default function App() {
   const createDriver = async (driverData: any) => {
     setLoading(true);
     try {
-      const response = await makeAuthenticatedRequest('/api/drivers/', {
+      const response = await makeAuthenticatedRequest('/drivers/', {
         method: 'POST',
         body: JSON.stringify({
           first_name: driverData.first_name,
@@ -2919,7 +2916,7 @@ export default function App() {
   const updateDriver = async (driverId: any, driverData: any) => {
     setLoading(true);
     try {
-      const response = await makeAuthenticatedRequest(`/api/drivers/${driverId}/`, {
+      const response = await makeAuthenticatedRequest(`/drivers/${driverId}/`, {
         method: 'PATCH',
         body: JSON.stringify(driverData)
       });
@@ -2944,7 +2941,7 @@ export default function App() {
   const deleteDriver = async (driverId: any) => {
     setLoading(true);
     try {
-      const response = await makeAuthenticatedRequest(`/api/drivers/${driverId}/`, {
+      const response = await makeAuthenticatedRequest(`/drivers/${driverId}/`, {
         method: 'DELETE'
       });
 
@@ -2974,7 +2971,7 @@ export default function App() {
   const assignVehicleToDriver = async (driverId: any, vehicleId: any, assignedFrom: any = null) => {
     setLoading(true);
     try {
-      const response = await makeAuthenticatedRequest(`/api/drivers/${driverId}/assign_vehicle/`, {
+      const response = await makeAuthenticatedRequest(`/drivers/${driverId}/assign_vehicle/`, {
         method: 'POST',
         body: JSON.stringify({
           vehicle_id: vehicleId,
