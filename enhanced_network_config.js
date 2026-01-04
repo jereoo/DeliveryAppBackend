@@ -9,14 +9,14 @@ const NetworkConfig = {
   development: {
     autoDetect: true,
     scanTimeout: 2000,
-    commonPorts: [8081, 8080, 3000, 8000],
+    commonPorts: [8000, 8080, 3000],
     fallbackEndpoints: [
-      { url: 'http://192.168.1.85:8081', name: 'Current Network IP' },
-      { url: 'http://192.168.1.87:8081', name: 'Home Office Network' },
-      { url: 'http://192.168.1.82:8081', name: 'Home Office Network (Alt)' },
-      { url: 'http://10.0.0.1:8081', name: 'Router Default' },
-      { url: 'http://172.20.10.6:8081', name: 'Mobile Hotspot' },
-      { url: 'http://localhost:8081', name: 'Localhost' }
+      { url: 'http://localhost:8000', name: 'Current Network IP' },
+      { url: 'http://localhost:8000', name: 'Home Office Network' },
+      { url: 'http://localhost:8000', name: 'Home Office Network (Alt)' },
+      { url: 'http://localhost:8000', name: 'Router Default' },
+      { url: 'http://localhost:8000', name: 'Mobile Hotspot' },
+      { url: 'http://localhost:8000', name: 'Localhost' }
     ]
   },
 

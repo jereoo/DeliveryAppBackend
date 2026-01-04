@@ -23,9 +23,9 @@ const NetworkConfig = {
 
     // Primary endpoints (in priority order)
     ENDPOINTS: [
-      'http://192.168.1.77:8000',  // Current server IP (from Django startup)
+      'http://192.168.1.85:8000',  // Current server IP (from Django startup)
       'http://127.0.0.1:8000',     // Localhost 
-      'http://192.168.1.79:8081',  // Alternative mobile IP
+      'http://localhost:8000',  // Alternative mobile IP
     ],    // IP ranges to auto-scan
     scanRanges: [
       { base: '192.168.1.', start: 80, end: 90, name: 'Home Network Range' },
@@ -230,7 +230,7 @@ TO IMPLEMENT THIS ENHANCED NETWORK SYSTEM:
    ```
    // Network detection
    const NETWORK_ENDPOINTS = [
-     { url: 'http://192.168.1.87:8081', name: 'Home Office Network' },
+     { url: 'http://localhost:8000', name: 'Home Office Network' },
      // ... etc
    ];
    ```

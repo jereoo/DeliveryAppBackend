@@ -56,7 +56,7 @@ class AddressValidationService {
   private baseUrl: string;
   private apiToken: string | null = null;
 
-  constructor(baseUrl: string = 'http://192.168.1.79:8000/api') {
+  constructor(baseUrl: string = process.env.BACKEND_URL || 'https://tunnel-not-configured.exp.direct') {
     this.baseUrl = baseUrl;
     this.loadToken();
   }

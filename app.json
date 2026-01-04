@@ -35,7 +35,8 @@
     "extra": {
       "eas": {
         "projectId": "your-eas-project-id-if-any"
-      }
+      },
+      "backendUrl": "http://192.168.1.69:8000/api"
     }
   }
 }
