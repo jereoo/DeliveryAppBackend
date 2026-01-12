@@ -34,7 +34,30 @@ echo 🌐 Local IP detected: %LOCAL_IP%
 echo.
 echo 📋 Step 5: Starting Expo mobile development server...
 cd /d "c:\Users\360WEB\DeliveryAppMobile"
+
+echo 📋 Step 5a: Starting Expo and detecting tunnel URL...
 start "Expo Mobile" cmd /k "npx expo start --tunnel"
+
+echo 📋 Step 5b: Waiting for tunnel to establish...
+timeout /t 10 /nobreak >nul
+
+echo 📋 Step 5c: Detecting actual tunnel URL...
+for /f "tokens=*" %%i in ('powershell -Command "try { $response = Invoke-WebRequest -Uri http://localhost:19000 -TimeoutSec 5; if ($response.Content -match 'exp://([a-z0-9-]+)\.exp\.direct') { 'https://' + $matches[1] + '.exp.direct' } } catch { '' }"') do set TUNNEL_URL=%%i
+
+if defined TUNNEL_URL (
+    echo 🌐 Tunnel URL detected: %TUNNEL_URL%
+    echo 📋 Step 5d: Updating .env with detected tunnel URL...
+    echo # CIO DIRECTIVE – PERMANENT FIX FOR DAILY NETWORK ERROR – DEC 04 2025 > .env
+    echo EXPO_USE_TUNNEL=true >> .env
+    echo BACKEND_URL=%TUNNEL_URL%/api >> .env
+    echo ✅ Updated .env with detected tunnel URL: %TUNNEL_URL%/api
+) else (
+    echo ⚠️  Could not detect tunnel URL, using fallback...
+    echo # CIO DIRECTIVE – PERMANENT FIX FOR DAILY NETWORK ERROR – DEC 04 2025 > .env
+    echo EXPO_USE_TUNNEL=true >> .env
+    echo BACKEND_URL=https://fallback-tunnel.exp.direct/api >> .env
+    echo ✅ Updated .env with fallback tunnel URL
+)
 
 echo.
 echo 📋 Step 6: Backend health check...

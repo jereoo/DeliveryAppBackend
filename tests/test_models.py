@@ -82,17 +82,15 @@ class DriverModelTests(TestCase):
         """Test driver name property from User model"""
         driver = Driver.objects.create(
             user=self.user,
-            name='John Driver',
             phone_number='555-5678',
             license_number='DL123456'
         )
-        self.assertEqual(driver.name, 'John Driver')
+        self.assertEqual(driver.full_name, 'John Driver')
     
     def test_driver_str_representation(self):
         """Test driver string representation"""
         driver = Driver.objects.create(
             user=self.user,
-            name='John Driver',
             phone_number='555-5678',
             license_number='DL123456'
         )
@@ -227,7 +225,6 @@ class DriverVehicleModelTests(TestCase):
         )
         self.driver = Driver.objects.create(
             user=self.user,
-            name='Test Driver',
             phone_number='555-7777',
             license_number='DL789123'
         )
@@ -287,7 +284,6 @@ class DeliveryAssignmentModelTests(TestCase):
         )
         self.driver = Driver.objects.create(
             user=self.driver_user,
-            name='Test Driver',
             phone_number='555-7777',
             license_number='DL789123'
         )
@@ -380,7 +376,6 @@ class DeliveryWorkflowIntegrationTests(TestCase):
         )
         self.driver = Driver.objects.create(
             user=self.driver_user,
-            name='Integration Driver',
             phone_number='555-8888',
             license_number='INT123456'
         )

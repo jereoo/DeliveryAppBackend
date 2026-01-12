@@ -133,7 +133,6 @@ class DriverAPITests(APITestCase):
         )
         self.driver = Driver.objects.create(
             user=self.user,
-            name='Test Driver',
             phone_number='555-7777',
             license_number='DL123456'
         )

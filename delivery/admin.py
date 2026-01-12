@@ -69,7 +69,7 @@ class DriverAdmin(admin.ModelAdmin):
         """Display driver's full name from User model"""
         if obj.user:
             return f"{obj.user.first_name} {obj.user.last_name}".strip()
-        return obj.name  # Fallback to deprecated field during transition
+        return f"{obj.first_name} {obj.last_name}".strip() or f"Driver #{obj.id}"
     full_name_display.short_description = 'Full Name'
     
     def user_username(self, obj):

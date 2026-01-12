@@ -372,8 +372,14 @@ class VehicleSerializer(serializers.ModelSerializer):
 
 
 class DriverVehicleSerializer(serializers.ModelSerializer):
-    driver_name = serializers.CharField(source='driver.name', read_only=True)
+    driver_name = serializers.SerializerMethodField(read_only=True)
     vehicle_license_plate = serializers.CharField(source='vehicle.license_plate', read_only=True)
+    
+    def get_driver_name(self, obj):
+        """Get driver full name from first_name + last_name"""
+        if obj.driver:
+            return f"{obj.driver.first_name} {obj.driver.last_name}".strip()
+        return ""
     
     class Meta:
         model = DriverVehicle
@@ -381,9 +387,15 @@ class DriverVehicleSerializer(serializers.ModelSerializer):
 
 
 class DeliveryAssignmentSerializer(serializers.ModelSerializer):
-    driver_name = serializers.CharField(source='driver.name', read_only=True)
+    driver_name = serializers.SerializerMethodField(read_only=True)
     vehicle_license_plate = serializers.CharField(source='vehicle.license_plate', read_only=True)
     customer_name = serializers.CharField(source='delivery.customer.display_name', read_only=True)
+    
+    def get_driver_name(self, obj):
+        """Get driver full name from first_name + last_name"""
+        if obj.driver:
+            return f"{obj.driver.first_name} {obj.driver.last_name}".strip()
+        return ""
     
     class Meta:
         model = DeliveryAssignment
@@ -397,7 +409,7 @@ class DriverWithVehicleSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Driver
-        fields = ['name', 'phone_number', 'license_number', 'active', 'vehicle_id', 'assigned_from']
+        fields = ['first_name', 'last_name', 'phone_number', 'license_number', 'active', 'vehicle_id', 'assigned_from']
     
     def validate_vehicle_id(self, value):
         """Validate that the vehicle exists and is active"""

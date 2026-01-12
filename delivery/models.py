@@ -159,9 +159,6 @@ class Driver(models.Model):
     first_name = models.CharField(max_length=150, blank=True, help_text='Driver first name')
     last_name = models.CharField(max_length=150, blank=True, help_text='Driver last name')
     
-    # DEPRECATED: Legacy name field - will be removed after migration
-    name = models.CharField(max_length=255, blank=True, help_text='DEPRECATED: Use user.first_name + user.last_name')
-    
     phone_number = models.CharField(max_length=20)
     license_number = models.CharField(max_length=50, unique=True)
     active = models.BooleanField(default=True)
@@ -180,14 +177,14 @@ class Driver(models.Model):
     def __str__(self):
         if self.user and (self.user.first_name or self.user.last_name):
             return f"{self.user.first_name} {self.user.last_name}".strip()
-        return self.name or f"Driver #{self.id}"
+        return f"Driver #{self.id}"
 
     @property
     def full_name(self):
-        """Get full name from User model or fallback to legacy name"""
+        """Get full name from User model"""
         if self.user and (self.user.first_name or self.user.last_name):
             return f"{self.user.first_name} {self.user.last_name}".strip()
-        return self.name or 'Unknown Driver'
+        return 'Unknown Driver'
 
     class Meta:
         ordering = ['-id']
@@ -248,7 +245,7 @@ class DriverVehicle(models.Model):
 
     def __str__(self):
         vehicle_info = self.vehicle.license_plate if self.vehicle else "No Vehicle"
-        return f"{self.driver.name} -> {vehicle_info} (from {self.assigned_from})"
+        return f"{self.driver.full_name} -> {vehicle_info} (from {self.assigned_from})"
 
 
 

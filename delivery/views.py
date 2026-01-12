@@ -172,7 +172,7 @@ class DriverViewSet(viewsets.ModelViewSet):
             
             serializer = DriverVehicleSerializer(new_assignment)
             return Response({
-                'message': f'Vehicle {vehicle.license_plate} assigned to {driver.name}',
+                'message': f'Vehicle {vehicle.license_plate} assigned to {driver.first_name} {driver.last_name}',
                 'assignment': serializer.data
             })
             
@@ -189,7 +189,7 @@ class DriverViewSet(viewsets.ModelViewSet):
             # Return the created driver with current vehicle info
             driver_serializer = DriverSerializer(driver)
             return Response({
-                'message': f'Driver {driver.name} created and assigned vehicle successfully',
+                'message': f'Driver {driver.first_name} {driver.last_name} created and assigned vehicle successfully',
                 'driver': driver_serializer.data
             }, status=status.HTTP_201_CREATED)
         
@@ -205,9 +205,9 @@ class DriverViewSet(viewsets.ModelViewSet):
                 
                 # Return success with driver info (no sensitive data)
                 return Response({
-                    'message': f'Driver {driver.name} registered successfully',
+                    'message': f'Driver {driver.first_name} {driver.last_name} registered successfully',
                     'driver_id': driver.id,
-                    'name': driver.name
+                    'name': f'{driver.first_name} {driver.last_name}'
                 }, status=status.HTTP_201_CREATED)
                 
             except Exception as e:

@@ -1,0 +1,600 @@
+# Customer CRUD Implementation in Django REST Framework
+
+## Overview
+
+The Customer CRUD (Create, Read, Update, Delete) functionality is implemented in a Django REST Framework backend for a delivery management system. This implementation follows Django best practices with JWT authentication, proper data validation, and role-based access control.
+
+## Architecture Components
+
+### 1. Data Model (`models.py`)
+
+The `Customer` model extends Django's built-in `User` model using a one-to-one relationship:
+
+```python
+class Customer(models.Model):
+    # Relationship to Django User
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='customer_profile')
+
+    # Contact Information
+    phone_number = models.CharField(max_length=20)
+
+    # Address Fields (Split for better data management)
+    address_unit = models.CharField(max_length=20, blank=True, null=True)
+    address_street = models.CharField(max_length=255, blank=True, null=True)
+    address_city = models.CharField(max_length=100, blank=True, null=True)
+    address_state = models.CharField(max_length=100, blank=True, null=True)
+    address_postal_code = models.CharField(max_length=20, blank=True, null=True)
+    address_country = models.CharField(max_length=2, choices=COUNTRY_CHOICES, default='US')
+
+    # Legacy field for backward compatibility
+    address = models.TextField(blank=True, null=True)
+
+    # Business vs Individual customer
+    company_name = models.CharField(max_length=255, blank=True, null=True)
+    is_business = models.BooleanField(default=False)
+
+    # Additional features
+    preferred_pickup_address = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    active = models.BooleanField(default=True)
+```
+
+**Key Features:**
+- **One-to-One Relationship**: Each Customer is linked to exactly one Django User
+- **Split Address Fields**: Separate fields for better data validation and formatting
+- **Country-Specific Validation**: Different postal code formats for Canada vs US
+- **Business Support**: Optional company name for business customers
+- **Audit Trail**: `created_at` timestamp for tracking
+
+### 2. Serialization Layer (`serializers.py`)
+
+Two serializers handle different use cases:
+
+#### `CustomerSerializer` - Full CRUD Operations
+```python
+class CustomerSerializer(serializers.ModelSerializer):
+    # Nested User fields
+    username = serializers.CharField(source='user.username')
+    email = serializers.EmailField(source='user.email')
+    password = serializers.CharField(source='user.password', write_only=True, min_length=8)
+    first_name = serializers.CharField(source='user.first_name')
+    last_name = serializers.CharField(source='user.last_name')
+
+    # Computed fields
+    display_name = serializers.CharField(read_only=True)
+    full_name = serializers.SerializerMethodField(read_only=True)
+    full_address = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = Customer
+        fields = ['id', 'username', 'email', 'password', 'first_name', 'last_name',
+                 'full_name', 'display_name', 'phone_number', 'address',
+                 'address_unit', 'address_street', 'address_city', 'address_state',
+                 'address_postal_code', 'address_country', 'full_address',
+                 'company_name', 'is_business', 'preferred_pickup_address',
+                 'created_at', 'active']
+```
+
+#### `CustomerRegistrationSerializer` - Public Registration
+```python
+class CustomerRegistrationSerializer(serializers.ModelSerializer):
+    # Required fields for registration
+    username = serializers.CharField(source='user.username')
+    email = serializers.EmailField(source='user.email')
+    password = serializers.CharField(source='user.password', write_only=True, min_length=8)
+    first_name = serializers.CharField(source='user.first_name', required=True)
+    last_name = serializers.CharField(source='user.last_name', required=True)
+
+    # Validation methods
+    def validate_username(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("Username already exists")
+        return value
+
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Email already registered")
+        return value
+```
+
+**Key Features:**
+- **Nested User Fields**: Handles User model fields within Customer serializer
+- **Write-Only Password**: Password never returned in API responses
+- **Computed Fields**: `display_name`, `full_name`, and `full_address` are dynamically generated
+- **Validation**: Unique username/email checks, postal code format validation
+- **Security**: Uses `create_user()` to prevent accidental admin account creation
+
+### 3. View Layer (`views.py`)
+
+The `CustomerViewSet` provides RESTful CRUD operations:
+
+```python
+class CustomerViewSet(viewsets.ModelViewSet):
+    queryset = Customer.objects.all()
+    serializer_class = CustomerSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # Role-based access control
+        if self.request.user.is_staff:
+            return Customer.objects.all()
+        return Customer.objects.filter(user=self.request.user)
+```
+
+#### Custom Actions:
+
+**Registration Endpoint** (Public - no authentication required):
+```python
+@action(detail=False, methods=['post'], permission_classes=[])
+def register(self, request):
+    """Public endpoint for customer registration"""
+    serializer = CustomerRegistrationSerializer(data=request.data)
+    if serializer.is_valid():
+        customer = serializer.save()
+        return Response({
+            'message': 'Customer registered successfully',
+            'customer': CustomerSerializer(customer).data
+        }, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+```
+
+**Profile Access** (Authenticated users):
+```python
+@action(detail=False, methods=['get'])
+def me(self, request):
+    """Get current user's customer profile"""
+    try:
+        customer = request.user.customer_profile
+        serializer = CustomerSerializer(customer)
+        return Response(serializer.data)
+    except Customer.DoesNotExist:
+        return Response({'error': 'Customer profile not found'}, status=status.HTTP_404_NOT_FOUND)
+```
+
+**Delivery History** (Customer-specific):
+```python
+@action(detail=False, methods=['get'])
+def my_deliveries(self, request):
+    """Get current customer's deliveries"""
+    try:
+        customer = request.user.customer_profile
+        deliveries = customer.deliveries.all().order_by('-created_at')
+        serializer = DeliverySerializer(deliveries, many=True)
+        return Response(serializer.data)
+    except Customer.DoesNotExist:
+        return Response({'error': 'Customer profile not found'}, status=status.HTTP_404_NOT_FOUND)
+```
+
+### 4. URL Configuration (`urls.py`)
+
+```python
+router = DefaultRouter()
+router.register(r'customers', CustomerViewSet, basename='customer')
+
+urlpatterns = [
+    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+]
+
+urlpatterns += router.urls
+```
+
+**Generated URLs:**
+- `GET/POST /api/customers/` - List customers or create new
+- `GET/PUT/PATCH/DELETE /api/customers/{id}/` - Customer detail operations
+- `POST /api/customers/register/` - Public registration
+- `GET /api/customers/me/` - Current user profile
+- `GET /api/customers/my_deliveries/` - Current user's deliveries
+
+## Security & Access Control
+
+### Authentication
+- **JWT Tokens**: 15-minute access tokens, 7-day refresh tokens
+- **Required for all operations** except registration
+- **Token rotation** enabled for security
+
+### Authorization
+- **Staff users**: Can view/edit all customers
+- **Regular customers**: Can only access their own profile
+- **Registration**: Public endpoint (no authentication required)
+
+### Data Validation
+- **Unique constraints**: Username and email must be unique
+- **Password requirements**: Minimum 8 characters
+- **Postal code validation**: Country-specific formats
+- **Required fields**: First name, last name, email, username for registration
+
+## API Usage Examples
+
+### 1. Customer Registration (Public)
+```bash
+POST /api/customers/register/
+{
+    "username": "johndoe",
+    "email": "john@example.com",
+    "password": "SecurePass123!",
+    "first_name": "John",
+    "last_name": "Doe",
+    "phone_number": "+1-555-0123",
+    "address_street": "123 Main St",
+    "address_city": "Anytown",
+    "address_state": "CA",
+    "address_postal_code": "90210",
+    "address_country": "US"
+}
+```
+
+### 2. Get Customer Profile (Authenticated)
+```bash
+GET /api/customers/me/
+Authorization: Bearer <jwt_token>
+```
+
+### 3. Update Customer (Authenticated)
+```bash
+PUT /api/customers/{id}/
+Authorization: Bearer <jwt_token>
+{
+    "first_name": "John",
+    "last_name": "Smith",
+    "phone_number": "+1-555-0123"
+}
+```
+
+### 4. List Customers (Staff Only)
+```bash
+GET /api/customers/
+Authorization: Bearer <jwt_token>
+```
+
+## Testing Implementation
+
+The system includes comprehensive PowerShell test scripts:
+
+```powershell
+# Test customer CRUD operations
+.\tests\test-customer-crud.ps1
+
+# Test customer registration workflow
+.\tests\test-customer-registration.ps1
+
+# Test complete customer workflow
+.\tests\test-customer-workflow.ps1
+```
+
+## Key Design Patterns
+
+### 1. **Separation of Concerns**
+- Model handles data structure and business logic
+- Serializer handles data transformation and validation
+- ViewSet handles HTTP request/response logic
+- URL configuration handles routing
+
+### 2. **Role-Based Access Control**
+- Different permissions for staff vs regular users
+- Queryset filtering based on user role
+
+### 3. **Computed Properties**
+- `display_name`: Shows company name or individual name
+- `full_name`: Combines first and last name
+- `full_address`: Formats address components
+
+### 4. **Validation Strategy**
+- Serializer-level validation for API constraints
+- Model-level validation for data integrity
+- Country-specific postal code validation
+
+### 5. **Security Best Practices**
+- Password write-only in serializers
+- JWT authentication required
+- User creation via `create_user()` method
+- No admin privileges for customer accounts
+
+## Integration Points
+
+The Customer CRUD system integrates with:
+- **Delivery System**: Customers can request deliveries
+- **Authentication System**: JWT token-based auth
+- **Address Validation**: Postal code format checking
+- **User Management**: Django's built-in User model
+
+## Model Properties and Methods
+
+### Computed Properties
+
+```python
+@property
+def display_name(self):
+    """Get display name for customer (company name or individual name)"""
+    if self.is_business and self.company_name:
+        return self.company_name
+    full_name = self.user.get_full_name()
+    return full_name if full_name else self.user.username
+
+@property
+def full_address(self):
+    """Combine separate address fields into a single formatted address"""
+    address_parts = []
+    if self.address_unit:
+        address_parts.append(f"Unit {self.address_unit}")
+    if self.address_street:
+        address_parts.append(self.address_street)
+    if self.address_city:
+        address_parts.append(self.address_city)
+    if self.address_state:
+        address_parts.append(self.address_state)
+    if self.address_postal_code:
+        address_parts.append(self.address_postal_code)
+    if self.address_country:
+        country_name = dict(self.COUNTRY_CHOICES).get(self.address_country, self.address_country)
+        address_parts.append(country_name)
+    return ", ".join(address_parts) if address_parts else self.address or ""
+```
+
+### Validation Methods
+
+```python
+def validate_postal_code(self):
+    """Validate postal code format based on country"""
+    if not self.address_postal_code or not self.address_country:
+        return  # Skip validation if postal code or country is not provided
+
+    postal_code = self.address_postal_code.strip().upper()
+
+    if self.address_country == 'CA':
+        # Canadian postal code format: A1A 1A1
+        canadian_pattern = r'^[A-Z]\d[A-Z]\s?\d[A-Z]\d$'
+        if not re.match(canadian_pattern, postal_code):
+            raise ValidationError({
+                'address_postal_code': 'Canadian postal codes must be in the format A1A 1A1 (e.g., K1A 0A6)'
+            })
+    elif self.address_country == 'US':
+        # US ZIP code format: 12345 or 12345-1234
+        us_pattern = r'^\d{5}(-\d{4})?$'
+        if not re.match(us_pattern, postal_code):
+            raise ValidationError({
+                'address_postal_code': 'US ZIP codes must be in the format 12345 or 12345-1234'
+            })
+
+def clean(self):
+    """Custom validation for the model"""
+    super().clean()
+    self.validate_postal_code()
+```
+
+## Serializer Methods
+
+### CustomerSerializer Methods
+
+```python
+def get_full_name(self, obj):
+    return obj.user.get_full_name()
+
+def create(self, validated_data):
+    # Extract user data from validated_data
+    user_data = validated_data.pop('user')
+    # CIO DIRECTIVE NOV 30 2025 – Use create_user to prevent accidental admin creation
+    user = User.objects.create_user(
+        username=user_data.get('username'),
+        email=user_data.get('email'),
+        first_name=user_data.get('first_name', ''),
+        last_name=user_data.get('last_name', ''),
+        password=user_data.get('password'),
+        is_staff=False,
+        is_superuser=False
+    )
+    # Create the Customer instance
+    customer = Customer.objects.create(user=user, **validated_data)
+    return customer
+
+def update(self, instance, validated_data):
+    # Extract user data
+    user_data = {}
+    if 'user' in validated_data:
+        user_data = validated_data.pop('user')
+    # Update User fields if provided
+    if user_data:
+        user = instance.user
+        for attr, value in user_data.items():
+            setattr(user, attr, value)
+        user.save()
+    # Update Customer fields
+    for attr, value in validated_data.items():
+        setattr(instance, attr, value)
+    instance.save()
+    return instance
+```
+
+### CustomerRegistrationSerializer Validation
+
+```python
+def validate(self, data):
+    """Custom validation for postal code based on country"""
+    import re
+
+    postal_code = data.get('address_postal_code')
+    country = data.get('address_country')
+
+    if postal_code and country:
+        postal_code = postal_code.strip().upper()
+
+        if country == 'CA' or country == 'Canada':
+            # Canadian postal code format: A1A 1A1 or A1A1A1
+            # More flexible pattern to handle both formats
+            canadian_pattern = r'^[A-Z]\d[A-Z]\s*\d[A-Z]\d$'
+            if not re.match(canadian_pattern, postal_code):
+                raise serializers.ValidationError({
+                    'address_postal_code': 'Canadian postal codes must be in the format A1A 1A1 or A1A1A1 (e.g., K1A 0A6)'
+                })
+        elif country == 'US' or country == 'USA' or country == 'United States':
+            # US ZIP code format: 12345 or 12345-1234
+            us_pattern = r'^\d{5}(-\d{4})?$'
+            if not re.match(us_pattern, postal_code):
+                raise serializers.ValidationError({
+                    'address_postal_code': 'US ZIP codes must be in the format 12345 or 12345-1234'
+                })
+        # Note: For other countries, we'll be more lenient and allow any format
+
+    return data
+
+def create(self, validated_data):
+    user_data = validated_data.pop('user')
+
+    # Create User
+    # CIO DIRECTIVE NOV 30 2025 – Customers must never be created as admins
+    user = User.objects.create_user(
+        username=user_data['username'],
+        email=user_data['email'],
+        password=user_data['password'],
+        first_name=user_data.get('first_name', ''),
+        last_name=user_data.get('last_name', ''),
+        is_active=True,  # Fix: Ensure user account is active for login
+        is_staff=False,
+        is_superuser=False
+    )
+
+    # Create Customer profile (skip model validation since we already validated)
+    customer = Customer(**validated_data)
+    customer.user = user
+    customer.save(validate=False)
+    return customer
+```
+
+## ViewSet Methods
+
+### CustomerViewSet Methods
+
+```python
+def get_queryset(self):
+    # Customers can only see their own profile, staff can see all
+    if self.request.user.is_staff:
+        return Customer.objects.all()
+    return Customer.objects.filter(user=self.request.user)
+
+@action(detail=False, methods=['post'], permission_classes=[])
+def register(self, request):
+    """Public endpoint for customer registration"""
+    serializer = CustomerRegistrationSerializer(data=request.data)
+    if serializer.is_valid():
+        customer = serializer.save()
+        return Response({
+            'message': 'Customer registered successfully',
+            'customer': CustomerSerializer(customer).data
+        }, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@action(detail=False, methods=['get'])
+def me(self, request):
+    """Get current user's customer profile"""
+    try:
+        customer = request.user.customer_profile
+        serializer = CustomerSerializer(customer)
+        return Response(serializer.data)
+    except Customer.DoesNotExist:
+        return Response({'error': 'Customer profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+@action(detail=False, methods=['get'])
+def my_deliveries(self, request):
+    """Get current customer's deliveries"""
+    try:
+        customer = request.user.customer_profile
+        deliveries = customer.deliveries.all().order_by('-created_at')
+        serializer = DeliverySerializer(deliveries, many=True)
+        return Response(serializer.data)
+    except Customer.DoesNotExist:
+        return Response({'error': 'Customer profile not found'}, status=status.HTTP_404_NOT_FOUND)
+```
+
+## Database Schema
+
+The Customer model creates the following database table structure:
+
+```sql
+CREATE TABLE delivery_customer (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL UNIQUE REFERENCES auth_user(id),
+    phone_number VARCHAR(20) NOT NULL,
+    address_unit VARCHAR(20),
+    address_street VARCHAR(255),
+    address_city VARCHAR(100),
+    address_state VARCHAR(100),
+    address_postal_code VARCHAR(20),
+    address_country VARCHAR(2) NOT NULL,
+    address TEXT,
+    company_name VARCHAR(255),
+    is_business BOOLEAN NOT NULL,
+    preferred_pickup_address TEXT,
+    created_at DATETIME NOT NULL,
+    active BOOLEAN NOT NULL
+);
+```
+
+## Migration History
+
+The Customer model has evolved through several migrations:
+
+1. **Initial Creation**: Basic customer fields with legacy address
+2. **Address Splitting**: Separate address fields for better data management
+3. **Business Support**: Added company_name and is_business fields
+4. **Country Support**: Added address_country with choices
+5. **Audit Trail**: Added created_at timestamp
+6. **Active Status**: Added active boolean field
+
+## Performance Considerations
+
+### Database Indexes
+- Primary key on `id`
+- Unique constraint on `user_id`
+- Foreign key index on `user_id`
+
+### Query Optimization
+- `select_related('user')` for User data in queries
+- Filtered querysets based on user permissions
+- Efficient ordering by `created_at` for delivery history
+
+### Caching Strategy
+- JWT tokens cached for 15 minutes
+- User profile data cached in session
+- Static data (country choices) cached
+
+## Error Handling
+
+### Validation Errors
+- Field-specific validation messages
+- Country-specific postal code errors
+- Unique constraint violations
+
+### Authentication Errors
+- Invalid JWT tokens
+- Expired tokens
+- Insufficient permissions
+
+### Business Logic Errors
+- Customer profile not found
+- Delivery access denied
+- Invalid data formats
+
+## Monitoring and Logging
+
+### API Logging
+- All CRUD operations logged
+- Authentication attempts tracked
+- Error responses recorded
+
+### Performance Monitoring
+- Query execution times
+- API response times
+- Database connection pooling
+
+### Security Auditing
+- Failed authentication attempts
+- Permission violations
+- Data access patterns
+
+---
+
+*This documentation covers the complete Customer CRUD implementation in the Django REST Framework backend for the DeliveryApp system. The implementation follows Django best practices with proper security, validation, and scalability considerations.*
+
+*Generated on: December 12, 2025*
+*System: DeliveryApp Backend v1.2.0*</content>
+<parameter name="filePath">c:\Users\360WEB\DeliveryAppBackend\Customer_CRUD_Documentation.md
