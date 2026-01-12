@@ -42,3 +42,4 @@ yarn-error.*
 
 # custom scripts directory
 360scripts/
+coverage/
