@@ -26,7 +26,7 @@ DEBUG = True
 # for mobile app testing - flexible for changing IP addresses
 if DEBUG:
     # In development, allow all local network IPs
-    ALLOWED_HOSTS = ['*']  # Allow all hosts in development
+    ALLOWED_HOSTS = ['shakita-unlopped-colten.ngrok-free.dev', 'localhost', '127.0.0.1']  # Allow specific hosts
 else:
     # Production settings would go here
     ALLOWED_HOSTS = ["127.0.0.1", "localhost"]

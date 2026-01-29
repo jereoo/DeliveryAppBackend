@@ -27,42 +27,59 @@ timeout /t 5 /nobreak >nul
 
 echo.
 echo 📋 Step 4: Detecting local IP address...
-for /f "tokens=2 delims=:" %%i in ('ipconfig ^| findstr /c:"IPv4 Address"') do set LOCAL_IP=%%i
+:: Improved IP detection - find WiFi/LAN adapter IP
+for /f "tokens=2 delims=:" %%i in ('ipconfig ^| findstr /c:"IPv4 Address" ^| findstr /v "127.0.0.1" ^| findstr /v "169.254"') do (
+    set "LOCAL_IP=%%i"
+    goto :ip_found
+)
+:ip_found
 set LOCAL_IP=%LOCAL_IP: =%
+if "%LOCAL_IP%"=="" set LOCAL_IP=192.168.1.80
 echo 🌐 Local IP detected: %LOCAL_IP%
 
 echo.
-echo 📋 Step 5: Starting Expo mobile development server...
-cd /d "c:\Users\360WEB\DeliveryAppMobile"
+echo 📋 Step 5: Starting ngrok tunnel for backend...
+cd /d "c:\Users\360WEB\DeliveryApp"
 
-echo 📋 Step 5a: Starting Expo and detecting tunnel URL...
-start "Expo Mobile" cmd /k "npx expo start --tunnel"
+echo 📋 Step 5a: Creating ngrok tunnel to Django backend...
+start "Ngrok Tunnel" cmd /k "ngrok.exe http 8000"
 
-echo 📋 Step 5b: Waiting for tunnel to establish...
-timeout /t 10 /nobreak >nul
+echo 📋 Step 5b: Waiting for ngrok tunnel to establish...
+timeout /t 8 /nobreak >nul
 
-echo 📋 Step 5c: Detecting actual tunnel URL...
-for /f "tokens=*" %%i in ('powershell -Command "try { $response = Invoke-WebRequest -Uri http://localhost:19000 -TimeoutSec 5; if ($response.Content -match 'exp://([a-z0-9-]+)\.exp\.direct') { 'https://' + $matches[1] + '.exp.direct' } } catch { '' }"') do set TUNNEL_URL=%%i
+echo 📋 Step 5c: Detecting ngrok tunnel URL...
+for /f "tokens=*" %%i in ('powershell -Command "try { $response = Invoke-WebRequest -Uri http://localhost:4040/api/tunnels -TimeoutSec 5; $json = $response.Content | ConvertFrom-Json; $tunnel = $json.tunnels | Where-Object { $_.proto -eq 'https' } | Select-Object -First 1; if ($tunnel) { $tunnel.public_url } else { '' } } catch { '' }"') do set TUNNEL_URL=%%i
 
 if defined TUNNEL_URL (
-    echo 🌐 Tunnel URL detected: %TUNNEL_URL%
-    echo 📋 Step 5d: Updating .env with detected tunnel URL...
+    echo 🌐 Ngrok tunnel URL detected: %TUNNEL_URL%
+) else (
+    echo ⚠️  Ngrok tunnel not detected, falling back to LAN mode...
+)
+
+if defined TUNNEL_URL (
+    echo 🌐 Ngrok tunnel URL detected: %TUNNEL_URL%
+    echo 📋 Step 5d: Updating .env with ngrok tunnel URL...
     echo # CIO DIRECTIVE – PERMANENT FIX FOR DAILY NETWORK ERROR – DEC 04 2025 > .env
     echo EXPO_USE_TUNNEL=true >> .env
     echo BACKEND_URL=%TUNNEL_URL%/api >> .env
-    echo ✅ Updated .env with detected tunnel URL: %TUNNEL_URL%/api
+    echo ✅ Updated .env with ngrok tunnel URL: %TUNNEL_URL%/api
 ) else (
-    echo ⚠️  Could not detect tunnel URL, using fallback...
+    echo ⚠️  No ngrok tunnel detected, using LAN mode...
     echo # CIO DIRECTIVE – PERMANENT FIX FOR DAILY NETWORK ERROR – DEC 04 2025 > .env
-    echo EXPO_USE_TUNNEL=true >> .env
-    echo BACKEND_URL=https://fallback-tunnel.exp.direct/api >> .env
-    echo ✅ Updated .env with fallback tunnel URL
+    echo EXPO_USE_TUNNEL=false >> .env
+    echo BACKEND_URL=http://%LOCAL_IP%:8000/api >> .env
+    echo ✅ Updated .env with LAN URL: http://%LOCAL_IP%:8000/api
 )
+
+echo.
+echo 📋 Step 6: Starting Expo mobile development server...
+cd /d "c:\Users\360WEB\DeliveryAppMobile"
+start "Expo Mobile" cmd /k "npx expo start --tunnel"
 
 echo.
 echo 📋 Step 6: Backend health check...
 timeout /t 3 /nobreak >nul
-curl -s http://localhost:8000/api/deliveries/ >nul 2>&1
+curl -s http://localhost:8000/api/health/ >nul 2>&1
 if %errorlevel% equ 0 (
     echo ✅ Backend server is running successfully
 ) else (
@@ -74,10 +91,25 @@ echo ============================================================
 echo   🎯 CIO DIRECTIVE IMPLEMENTATION COMPLETE
 echo ============================================================
 echo   Backend URL: http://localhost:8000/api/
-echo   Local IP:    http://%LOCAL_IP%:8000/api/
+if defined TUNNEL_URL (
+    echo   Ngrok URL:   %TUNNEL_URL%/api/
+) else (
+    echo   Local IP:    http://%LOCAL_IP%:8000/api/
+)
 echo   Mobile:      Expo tunnel active
 echo   Status:      ZERO manual processes required
 echo ============================================================
 echo.
 echo Press any key to continue...
+pause >nul
+goto :eof
+
+:error
+echo.
+echo ============================================================
+echo   ❌ STARTUP FAILED
+echo ============================================================
+echo   Check the error messages above and try again
+echo ============================================================
+echo.
 pause >nul
