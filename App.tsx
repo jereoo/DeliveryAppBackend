@@ -12,7 +12,6 @@ import 'react-native-gesture-handler';
  * 4. Test customer registration on phone - keyboard should no longer block fields
  */
 
-import Constants from 'expo-constants';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -25,16 +24,28 @@ import {
   TextInput,
   View
 } from 'react-native';
-import { API_URL, checkBackendHealth, getApiDebugInfo } from './src/config/api';
+import { checkBackendHealth, getApiDebugInfo, getApiUrl } from './src/config/api';
 
 // ========================================
 // NETWORK HEALTH BANNER COMPONENT
 // ========================================
-const NetworkHealthBanner = () => {
+const NetworkHealthBanner = async () => {
   const [isBackendHealthy, setIsBackendHealthy] = useState<boolean | null>(null);
   const [showDebug, setShowDebug] = useState(false);
+  const [apiUrl, setApiUrl] = useState<string>('');
 
   useEffect(() => {
+    const resolveApiUrl = async () => {
+      try {
+        const url = await getApiUrl();
+        setApiUrl(url);
+      } catch (error) {
+        console.error('Failed to resolve API URL:', error);
+        setApiUrl('http://127.0.0.1:8000/api'); // fallback
+      }
+    };
+
+    resolveApiUrl();
     checkHealth();
     const interval = setInterval(checkHealth, 30000); // Check every 30 seconds
     return () => clearInterval(interval);
@@ -58,7 +69,7 @@ const NetworkHealthBanner = () => {
     return (
       <View style={[styles.healthBanner, styles.healthError]}>
         <Text style={styles.healthErrorText}>❌ BACKEND UNREACHABLE</Text>
-        <Text style={styles.healthErrorSubtext}>API: {API_URL}</Text>
+        <Text style={styles.healthErrorSubtext}>API: {apiUrl}</Text>
         <Button
           title={showDebug ? "Hide Debug" : "Show Debug"}
           onPress={() => setShowDebug(!showDebug)}
@@ -67,7 +78,7 @@ const NetworkHealthBanner = () => {
         {showDebug && (
           <View style={styles.debugInfo}>
             <Text style={styles.debugText}>
-              {JSON.stringify(getApiDebugInfo(), null, 2)}
+              {JSON.stringify(await getApiDebugInfo(), null, 2)}
             </Text>
           </View>
         )}
@@ -77,7 +88,7 @@ const NetworkHealthBanner = () => {
 
   return (
     <View style={[styles.healthBanner, styles.healthSuccess]}>
-      <Text style={styles.healthText}>✅ Backend Connected: {API_URL}</Text>
+      <Text style={styles.healthText}>✅ Backend Connected: {apiUrl}</Text>
     </View>
   );
 };
@@ -2114,13 +2125,10 @@ export default function App() {
   // Dynamically detect local IP for API_BASE
   // FIXED: Use Django backend IP directly (not phone's IP)
   // CIO DIRECTIVE: Use dynamic tunnel URL from environment variables
-  const [API_BASE, setApiBase] = useState(process.env.BACKEND_URL || Constants.expoConfig?.extra?.backendUrl || 'https://tunnel-not-configured.exp.direct');
+  const [API_BASE, setApiBase] = useState<string>('');  // Start empty, resolve async
   const [currentNetwork, setCurrentNetwork] = useState('Expo Tunnel (Dynamic)');
   // CIO DIRECTIVE: NO HARDCODED IPs - Use only tunnel URLs
-  const NETWORK_ENDPOINTS = [
-    { url: API_BASE, name: 'Expo Tunnel (Primary)' },
-    { url: process.env.BACKEND_URL || Constants.expoConfig?.extra?.backendUrl || 'https://fallback.exp.direct', name: 'Tunnel Fallback' }
-  ];
+  const [NETWORK_ENDPOINTS, setNetworkEndpoints] = useState([{ url: '', name: 'Unified API URL' }]);
   const [currentScreen, setCurrentScreen] = useState('main');
   const [backendStatus, setBackendStatus] = useState('Checking...');
   const [loading, setLoading] = useState(false);
@@ -2207,34 +2215,20 @@ export default function App() {
 
   const checkBackend = async () => {
     setBackendStatus('🔄 Checking...');
-
-    for (const endpoint of NETWORK_ENDPOINTS) {
-      try {
-        console.log(`Testing endpoint: ${endpoint.url}/`);
-        const response = await fetch(`${endpoint.url}/`, {
-          method: 'GET'
-        });
-
-        console.log(`Response from ${endpoint.name}: ${response.status}`);
-
-        if (response.status === 401 || response.status === 200) {
-          setApiBase(endpoint.url);
-          setCurrentNetwork(endpoint.name);
-          setBackendStatus(`✅ Connected (${endpoint.name})`);
-          Alert.alert('Backend Connected', `Successfully connected to ${endpoint.name} at ${endpoint.url}`);
-          return;
-        }
-      } catch (error) {
-        console.log(`Failed to connect to ${endpoint.name}:`, error);
-      }
+    const healthy = await checkBackendHealth();
+    if (healthy) {
+      // API_BASE is already resolved by useEffect, no need to set it again
+      setCurrentNetwork('Unified API URL');
+      setBackendStatus(`✅ Connected (Unified API)`);
+      Alert.alert('Backend Connected', `Successfully connected via ${API_BASE}`);
+    } else {
+      setBackendStatus('❌ No Backend Found');
+      setCurrentNetwork('Not Connected');
+      Alert.alert(
+        'Backend Connection Failed',
+        `Could not connect to ${API_BASE}.\n\nCheck:\n1. Backend server running\n2. Network connection\n3. Tunnel/LAN mode\n\nDebug: ${JSON.stringify(await getApiDebugInfo())}`
+      );
     }
-
-    setBackendStatus('❌ No Backend Found');
-    setCurrentNetwork('Not Connected');
-    Alert.alert(
-      'Backend Connection Failed',
-      'Could not connect to any backend endpoints.\n\nMake sure:\n1. Backend server is running\n2. You are on the same network\n3. IP addresses are correct'
-    );
   };
 
   // ========================================
@@ -3247,6 +3241,26 @@ export default function App() {
   // EFFECTS
   // ========================================
 
+  // Resolve API URL asynchronously on app start
+  useEffect(() => {
+    const resolveApiUrl = async () => {
+      try {
+        const url = await getApiUrl();
+        setApiBase(url);
+        setNetworkEndpoints([{ url, name: 'Unified API URL' }]);
+        console.log('✅ API URL resolved:', url);
+      } catch (error) {
+        console.error('❌ Failed to resolve API URL:', error);
+        // Fallback to LAN IP if tunnel detection fails
+        const fallbackUrl = 'http://192.168.1.80:8000/api';
+        setApiBase(fallbackUrl);
+        setNetworkEndpoints([{ url: fallbackUrl, name: 'LAN Fallback' }]);
+      }
+    };
+
+    resolveApiUrl();
+  }, []);
+
   useEffect(() => {
     checkBackend();
   }, []);
@@ -3328,6 +3342,7 @@ export default function App() {
             <Text style={styles.status}>{backendStatus}</Text>
             <Text style={styles.networkLabel}>Network: {currentNetwork}</Text>
             <Text style={styles.networkLabel}>API Base: {API_BASE}</Text>
+            <Text style={styles.debugLabel}>Debug: {JSON.stringify(getApiDebugInfo())}</Text>
           </View>
 
           <View style={styles.section}>

@@ -98,6 +98,7 @@ echo [92m🎉 DELIVERYAPP STARTUP COMPLETE![0m
 echo [92m====================================================[0m
 echo [92m📱 Scan the QR code in Expo Go app[0m
 echo [92m🌐 Django API: http://localhost:8000[0m
+echo [92m🏠 LAN URL: http://192.168.1.79:8000 (for mobile testing)[0m
 echo [92m🔗 Check Expo CLI output for tunnel URL[0m
 echo [92m====================================================[0m
 
