@@ -382,6 +382,7 @@ export default function App() {
             <Text style={styles.title}>{mode === 'create' ? 'Add Customer' : 'Edit Customer'}</Text>
             {error && <Text style={{ color: 'red', marginBottom: 10 }}>{error}</Text>}
 
+            <Text style={styles.label}>Username *</Text>
             <TextInput
               style={fieldErrors.username ? styles.inputError : styles.input}
               value={form.username}
@@ -396,6 +397,7 @@ export default function App() {
             />
             {fieldErrors.username && <Text style={styles.fieldError}>{fieldErrors.username}</Text>}
 
+            <Text style={styles.label}>Email *</Text>
             <TextInput
               style={fieldErrors.email ? styles.inputError : styles.input}
               value={form.email}
@@ -411,6 +413,7 @@ export default function App() {
             />
             {fieldErrors.email && <Text style={styles.fieldError}>{fieldErrors.email}</Text>}
 
+            <Text style={styles.label}>{mode === 'create' ? 'Password *' : 'Password'}</Text>
             <TextInput
               style={fieldErrors.password ? styles.inputError : styles.input}
               value={form.password}
@@ -425,6 +428,7 @@ export default function App() {
             />
             {fieldErrors.password && <Text style={styles.fieldError}>{fieldErrors.password}</Text>}
 
+            <Text style={styles.label}>First Name *</Text>
             <TextInput
               style={fieldErrors.first_name ? styles.inputError : styles.input}
               value={form.first_name}
@@ -438,6 +442,7 @@ export default function App() {
             />
             {fieldErrors.first_name && <Text style={styles.fieldError}>{fieldErrors.first_name}</Text>}
 
+            <Text style={styles.label}>Last Name *</Text>
             <TextInput
               style={fieldErrors.last_name ? styles.inputError : styles.input}
               value={form.last_name}
@@ -450,12 +455,25 @@ export default function App() {
               placeholder="Last Name *"
             />
             {fieldErrors.last_name && <Text style={styles.fieldError}>{fieldErrors.last_name}</Text>}
+
+            <Text style={styles.label}>Phone Number</Text>
             <TextInput style={styles.input} value={form.phone_number} onChangeText={t => setForm((f: typeof form) => ({ ...f, phone_number: t }))} placeholder="Phone Number" keyboardType="phone-pad" />
+
+            <Text style={styles.label}>Unit/Apartment</Text>
             <TextInput style={styles.input} value={form.address_unit} onChangeText={t => setForm((f: typeof form) => ({ ...f, address_unit: t }))} placeholder="Unit/Apartment" />
+
+            <Text style={styles.label}>Street Address</Text>
             <TextInput style={styles.input} value={form.address_street} onChangeText={t => setForm((f: typeof form) => ({ ...f, address_street: t }))} placeholder="Street Address" />
+
+            <Text style={styles.label}>City</Text>
             <TextInput style={styles.input} value={form.address_city} onChangeText={t => setForm((f: typeof form) => ({ ...f, address_city: t }))} placeholder="City" />
+
+            <Text style={styles.label}>State/Province</Text>
             <TextInput style={styles.input} value={form.address_state} onChangeText={t => setForm((f: typeof form) => ({ ...f, address_state: t }))} placeholder="State/Province" />
+
+            <Text style={styles.label}>Postal/ZIP Code</Text>
             <TextInput style={styles.input} value={form.address_postal_code} onChangeText={t => setForm((f: typeof form) => ({ ...f, address_postal_code: t }))} placeholder="Postal/ZIP Code" />
+
             <Text style={styles.label}>Country *</Text>
             <View style={{ flexDirection: 'row', marginBottom: 10 }}>
               <View style={{ flex: 1, marginRight: 5 }}>
@@ -478,8 +496,13 @@ export default function App() {
               <Switch value={form.is_business} onValueChange={v => setForm((f: typeof form) => ({ ...f, is_business: v }))} />
             </View>
             {form.is_business && (
-              <TextInput style={styles.input} value={form.company_name} onChangeText={t => setForm((f: typeof form) => ({ ...f, company_name: t }))} placeholder="Company Name" />
+              <>
+                <Text style={styles.label}>Company Name</Text>
+                <TextInput style={styles.input} value={form.company_name} onChangeText={t => setForm((f: typeof form) => ({ ...f, company_name: t }))} placeholder="Company Name" />
+              </>
             )}
+
+            <Text style={styles.label}>Preferred Pickup Address</Text>
             <TextInput style={[styles.input, styles.multilineInput]} value={form.preferred_pickup_address} onChangeText={t => setForm((f: typeof form) => ({ ...f, preferred_pickup_address: t }))} placeholder="Preferred Pickup Address" multiline numberOfLines={2} />
             <View style={styles.buttonContainer}>
               <Button title={mode === 'create' ? 'Create' : 'Update'} onPress={mode === 'create' ? handleCreate : handleUpdate} disabled={localLoading} />
