@@ -9,27 +9,32 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
+import os
 from pathlib import Path
 from decouple import config
-from datetime import timedelta # override simple jwt settings for timeouts
+from datetime import timedelta  # override simple jwt settings for timeouts
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Production detection: Heroku sets DYNO
+HEROKU = 'DYNO' in os.environ
+DEBUG = config('DEBUG', default=True, cast=bool) if not HEROKU else False
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-# for mobile app testing - flexible for changing IP addresses
-if DEBUG:
-    # In development, allow all local network IPs
-    ALLOWED_HOSTS = ['shakita-unlopped-colten.ngrok-free.dev', 'localhost', '127.0.0.1']  # Allow specific hosts
+if HEROKU:
+    ALLOWED_HOSTS = [
+        '.herokuapp.com',
+        'localhost',
+        '127.0.0.1',
+    ]
+elif DEBUG:
+    ALLOWED_HOSTS = [
+        'localhost',
+        '127.0.0.1',
+        '*',  # Allow any host in DEBUG (covers LAN IPs for mobile testing)
+    ]
 else:
-    # Production settings would go here
-    ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+    ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
 
 
 # Application definition
@@ -41,16 +46,18 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'corsheaders',  # Re-enabled for mobile app
+    'corsheaders',
     'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',  # Required when BLACKLIST_AFTER_ROTATION=True
     'delivery',
-    'address_validation',  # Address validation system
-    'tests',  # Added for test discovery
+    'address_validation',
+    'tests',
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # Re-enabled for mobile app
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -78,22 +85,24 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'DeliveryAppBackend.wsgi.application'
 
-SECRET_KEY = config('SECRET_KEY')
+SECRET_KEY = os.environ.get('SECRET_KEY') or config('SECRET_KEY', default='dev-secret-key-change-in-production')
 
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
-# Using PostgreSQL as the database backend
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'delivery_app',
-        'USER': 'delivery_user',
-        'PASSWORD': config('DATABASE_PASSWORD'),
-        'HOST': 'localhost',
-        'PORT': '5432',
+# Database - use DATABASE_URL on Heroku, else local PostgreSQL
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL:
+    import dj_database_url
+    DATABASES = {'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600)}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME', default='delivery_app'),
+            'USER': config('DB_USER', default='delivery_user'),
+            'PASSWORD': config('DATABASE_PASSWORD', default=''),
+            'HOST': config('DB_HOST', default='localhost'),
+            'PORT': config('DB_PORT', default='5432'),
+        }
     }
-}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -126,10 +135,10 @@ USE_I18N = True
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.2/howto/static-files/
-
+# Static files
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -159,7 +168,7 @@ SIMPLE_JWT = {
 }
 
 # CORS settings for React frontend and mobile app
-CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins for development
+CORS_ALLOW_ALL_ORIGINS = DEBUG  # Relax in dev only
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -171,7 +180,11 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:8081",
     "http://192.168.1.69:8081",
     "http://192.168.1.77:8081",
-    "http://192.168.1.68:19000",  # Expo dev server
+    "http://192.168.1.68:19000",
 ]
+# Add production frontend origins (e.g. Vercel) when deployed
+_origins = config('CORS_ORIGINS', default='')
+if not DEBUG and _origins:
+    CORS_ALLOWED_ORIGINS.extend(o.strip() for o in _origins.split(',') if o.strip())
 
 CORS_ALLOW_CREDENTIALS = True

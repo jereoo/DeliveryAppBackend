@@ -23,6 +23,14 @@ class CustomerSerializer(serializers.ModelSerializer):
     
     def get_full_name(self, obj):
         return obj.user.get_full_name()
+
+    def validate_phone_number(self, value):
+        """North America: 10 digits only (area code 1 assumed)."""
+        import re
+        digits = re.sub(r'\D', '', value or '')
+        if len(digits) != 10:
+            raise serializers.ValidationError('Phone must be exactly 10 digits (North America, no area code).')
+        return digits
     
     def create(self, validated_data):
         # Extract user data from validated_data
@@ -81,6 +89,14 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("Email already registered")
         return value
+
+    def validate_phone_number(self, value):
+        """North America: 10 digits only (area code 1 assumed)."""
+        import re
+        digits = re.sub(r'\D', '', value or '')
+        if len(digits) != 10:
+            raise serializers.ValidationError('Phone must be exactly 10 digits (North America, no area code).')
+        return digits
     
     def validate(self, data):
         """Custom validation for postal code based on country"""
@@ -185,6 +201,7 @@ class DriverSerializer(serializers.ModelSerializer):
     # CIO DIRECTIVE: Direct access to User model fields via Driver model fields
     # No longer using SerializerMethodField - all drivers now have User accounts
     
+    user = serializers.PrimaryKeyRelatedField(read_only=True)  # Never change user on update
     # Optional vehicle assignment fields
     vehicle_id = serializers.IntegerField(write_only=True, required=False, help_text="ID of vehicle to assign to this driver")
     assigned_from = serializers.DateField(write_only=True, required=False, help_text="Date when vehicle assignment starts (defaults to today)")
@@ -241,6 +258,14 @@ class DriverSerializer(serializers.ModelSerializer):
     
     # CIO DIRECTIVE: Removed get_first_name/get_last_name methods
     # Direct field access to driver.first_name and driver.last_name now available
+
+    def validate_phone_number(self, value):
+        """North America: 10 digits only (area code 1 assumed). Format: 5555555555"""
+        import re
+        digits = re.sub(r'\D', '', value or '')
+        if len(digits) != 10:
+            raise serializers.ValidationError('Phone must be exactly 10 digits (North America, no area code).')
+        return digits
     
     def create(self, validated_data):
         from django.utils import timezone
