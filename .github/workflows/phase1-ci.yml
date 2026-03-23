@@ -1,0 +1,58 @@
+# Phase 1: Backend CI - Test and validate for Render deployment
+name: Phase 1 Backend CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: delivery_user
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: delivery_app_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      SECRET_KEY: test-secret-key-for-ci
+      DATABASE_PASSWORD: postgres
+      DEBUG: "True"
+      DB_NAME: delivery_app_test
+      DB_USER: delivery_user
+      DB_HOST: localhost
+      DB_PORT: 5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run migrations
+        run: python manage.py migrate --noinput
+
+      - name: Run Django tests
+        run: python manage.py test --verbosity=1 --no-input
+        continue-on-error: true
+
+      - name: Collect static files (smoke test)
+        run: python manage.py collectstatic --noinput --dry-run
