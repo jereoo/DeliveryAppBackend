@@ -221,15 +221,15 @@ class Command(BaseCommand):
             self.stdout.write(f"Created {country_name} customer: {username} ({customer_type}) - {postal_code}")
 
     def create_test_drivers(self, count):
-        """Create test drivers with assigned vehicles"""
-        
-        driver_names = [
-            'Alex Johnson', 'Maria Garcia', 'Kevin Brown', 'Linda Davis',
-            'Carlos Rodriguez', 'Jennifer Wilson', 'Mark Thompson', 'Amy Lee',
-            'Tony Martinez', 'Rachel Green', 'Steve Clark', 'Diana Lopez',
-            'Paul Anderson', 'Sandra White', 'Ryan Taylor'
+        """Create test drivers (with User accounts) and vehicles per current models."""
+
+        driver_pairs = [
+            ('Alex', 'Johnson'), ('Maria', 'Garcia'), ('Kevin', 'Brown'), ('Linda', 'Davis'),
+            ('Carlos', 'Rodriguez'), ('Jennifer', 'Wilson'), ('Mark', 'Thompson'), ('Amy', 'Lee'),
+            ('Tony', 'Martinez'), ('Rachel', 'Green'), ('Steve', 'Clark'), ('Diana', 'Lopez'),
+            ('Paul', 'Anderson'), ('Sandra', 'White'), ('Ryan', 'Taylor'),
         ]
-        
+
         vehicle_makes = ['Ford', 'Chevrolet', 'Toyota', 'Honda', 'Nissan', 'Hyundai']
         vehicle_models = {
             'Ford': ['Transit', 'E-Series', 'F-150'],
@@ -237,45 +237,62 @@ class Command(BaseCommand):
             'Toyota': ['Hiace', 'Tacoma', 'Sienna'],
             'Honda': ['Pilot', 'Ridgeline', 'Odyssey'],
             'Nissan': ['NV200', 'Frontier', 'Titan'],
-            'Hyundai': ['H350', 'Santa Fe', 'Tucson']
+            'Hyundai': ['H350', 'Santa Fe', 'Tucson'],
         }
 
         for i in range(count):
-            # Create Driver
-            name = random.choice(driver_names) if i < len(driver_names) else f"Driver {i+1}"
-            license_number = f"DL{random.randint(100000, 999999)}"
-            phone = f"555-{random.randint(100,999)}-{random.randint(1000,9999)}"
-            
+            if i < len(driver_pairs):
+                first_name, last_name = driver_pairs[i]
+            else:
+                first_name, last_name = 'Test', f'Driver{i + 1}'
+
+            username = f"driver.{first_name.lower()}.{last_name.lower()}.{i + 1}"
+            email = f"{username}@test.local"
+            license_number = f"DL{1000000 + i:07d}"
+            phone = f"555-{random.randint(100, 999)}-{random.randint(1000, 9999)}"
+
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password='testpass123',
+                first_name=first_name,
+                last_name=last_name,
+            )
+
             driver = Driver.objects.create(
-                name=name,
+                user=user,
+                first_name=first_name,
+                last_name=last_name,
                 phone_number=phone,
                 license_number=license_number,
-                active=True
+                active=True,
             )
 
-            # Create Vehicle for the driver
             make = random.choice(vehicle_makes)
-            model = random.choice(vehicle_models[make])
-            license_plate = f"{random.choice(['ABC', 'XYZ', 'DEF'])}{random.randint(100, 999)}"
-            capacity = random.choice([500, 750, 1000, 1250, 1500, 2000])  # kg
-            
+            model_name = random.choice(vehicle_models[make])
+            license_plate = f"{random.choice(['ABC', 'XYZ', 'DEF'])}{100 + i:03d}"
+            capacity = random.choice([500, 750, 1000, 1250, 1500, 2000])
+            vin = f"1TEST{i:012d}"[:17].ljust(17, '0')
+
             vehicle = Vehicle.objects.create(
                 license_plate=license_plate,
-                model=f"{make} {model}",
+                make=make,
+                model=model_name,
+                year=random.randint(2018, 2025),
+                vin=vin,
                 capacity=capacity,
-                active=True
+                capacity_unit='kg',
+                active=True,
             )
 
-            # Assign vehicle to driver (current assignment)
             DriverVehicle.objects.create(
                 driver=driver,
                 vehicle=vehicle,
-                assigned_from=date.today()
-                # assigned_to is None for current assignment
+                assigned_from=date.today(),
             )
 
             self.stdout.write(
-                f"Created driver: {name} with {vehicle.model} ({license_plate}) - {capacity}kg capacity"
+                f"Created driver: {first_name} {last_name} with {make} {model_name} ({license_plate})"
             )
 
     def create_sample_deliveries(self, count=5):
