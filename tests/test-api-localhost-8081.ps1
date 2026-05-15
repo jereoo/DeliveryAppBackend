@@ -9,7 +9,7 @@ $headers = @{ 'Content-Type' = 'application/json' }
 Write-Host "1. AUTHENTICATION TEST" -ForegroundColor Cyan
 $authData = @{
     username = "admin"
-    password = "admin123"
+    password = $env:ADMIN_PASSWORD
 } | ConvertTo-Json
 
 try {

@@ -7,9 +7,15 @@ $headers = @{ 'Content-Type' = 'application/json' }
 
 # Step 1: Get Authentication Token
 Write-Host "1. AUTHENTICATION TEST" -ForegroundColor Cyan
+$adminUser = if ($env:ADMIN_USERNAME) { $env:ADMIN_USERNAME } else { "admin" }
+$adminPass = $env:ADMIN_PASSWORD
+if (-not $adminPass) {
+    Write-Host "Set ADMIN_PASSWORD (see docs/ADMIN_BOOTSTRAP.md)" -ForegroundColor Red
+    exit 1
+}
 $authData = @{
-    username = "admin"
-    password = "admin123"
+    username = $adminUser
+    password = $adminPass
 } | ConvertTo-Json
 
 try {

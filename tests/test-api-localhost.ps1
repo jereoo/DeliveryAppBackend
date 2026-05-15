@@ -21,7 +21,7 @@ Write-Host ""
 Write-Host "2. AUTHENTICATION TEST" -ForegroundColor Cyan
 $authData = @{
   username = "admin"
-  password = "admin123"
+  password = $env:ADMIN_PASSWORD
 } | ConvertTo-Json
 
 try {

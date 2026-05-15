@@ -11,7 +11,7 @@ function Get-AuthToken {
   try {
     $body = @{
       username = "admin"
-      password = "admin123"
+      password = $env:ADMIN_PASSWORD
     } | ConvertTo-Json
         
     $response = Invoke-RestMethod -Uri "$baseUrl/api/token/" -Method POST -Body $body -ContentType "application/json"
