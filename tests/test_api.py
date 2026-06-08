@@ -373,6 +373,104 @@ class APIErrorHandlingTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
+class DriverSelfServiceAPITests(APITestCase):
+    """Driver /me and /me/vehicle self-service endpoints."""
+
+    def setUp(self):
+        self.driver_user = User.objects.create_user(
+            username='driver1',
+            email='driver1@example.com',
+            password='testpass123',
+            first_name='Jane',
+            last_name='Driver',
+        )
+        self.driver = Driver.objects.create(
+            user=self.driver_user,
+            first_name='Jane',
+            last_name='Driver',
+            phone_number='5551234567',
+            license_number='DL-SELF-001',
+            active=True,
+        )
+        self.vehicle = Vehicle.objects.create(
+            license_plate='SELF001',
+            make='Ford',
+            model='Transit',
+            year=2022,
+            vin='1SELFTEST00000001',
+            capacity=1500,
+            capacity_unit='kg',
+            active=True,
+        )
+        from django.utils import timezone
+        from delivery.models import DriverVehicle
+        DriverVehicle.objects.create(
+            driver=self.driver,
+            vehicle=self.vehicle,
+            assigned_from=timezone.now().date(),
+        )
+        self.other_user = User.objects.create_user(
+            username='driver2',
+            password='testpass123',
+        )
+        self.other_driver = Driver.objects.create(
+            user=self.other_user,
+            first_name='Other',
+            last_name='Driver',
+            phone_number='5559876543',
+            license_number='DL-OTHER-001',
+            active=True,
+        )
+        refresh = RefreshToken.for_user(self.driver_user)
+        self.client = APIClient()
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+
+    def test_driver_me_get(self):
+        response = self.client.get('/api/drivers/me/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['license_number'], 'DL-SELF-001')
+        self.assertEqual(response.data['first_name'], 'Jane')
+
+    def test_driver_me_patch(self):
+        response = self.client.patch('/api/drivers/me/', {
+            'phone_number': '5551112222',
+            'first_name': 'Janet',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['phone_number'], '5551112222')
+        self.assertEqual(response.data['first_name'], 'Janet')
+        self.driver.refresh_from_db()
+        self.assertEqual(self.driver.phone_number, '5551112222')
+
+    def test_driver_me_vehicle_get(self):
+        response = self.client.get('/api/drivers/me/vehicle/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['license_plate'], 'SELF001')
+        self.assertEqual(response.data['make'], 'Ford')
+
+    def test_driver_me_vehicle_patch(self):
+        response = self.client.patch('/api/drivers/me/vehicle/', {
+            'model': 'Transit XL',
+            'capacity': 1800,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['model'], 'Transit XL')
+        self.assertEqual(response.data['capacity'], 1800)
+        self.vehicle.refresh_from_db()
+        self.assertEqual(self.vehicle.model, 'Transit XL')
+
+    def test_driver_cannot_list_other_drivers(self):
+        response = self.client.get('/api/drivers/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data['results'] if isinstance(response.data, dict) else response.data
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['id'], self.driver.id)
+
+    def test_driver_cannot_access_other_driver_detail(self):
+        response = self.client.get(f'/api/drivers/{self.other_driver.id}/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
 class APIPaginationTests(APITestCase):
     """Test API pagination functionality"""
     

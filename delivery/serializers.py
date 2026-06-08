@@ -396,6 +396,74 @@ class VehicleSerializer(serializers.ModelSerializer):
         return value.upper()
 
 
+class DriverMeSerializer(serializers.ModelSerializer):
+    """Self-service driver profile (no vehicle reassignment or active flag changes)."""
+
+    active = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = Driver
+        fields = ['id', 'first_name', 'last_name', 'phone_number', 'license_number', 'active']
+
+    def validate_phone_number(self, value):
+        import re
+        digits = re.sub(r'\D', '', value or '')
+        if len(digits) != 10:
+            raise serializers.ValidationError(
+                'Phone must be exactly 10 digits (North America, no area code).'
+            )
+        return digits
+
+    def validate_license_number(self, value):
+        qs = Driver.objects.filter(license_number=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError('This license number is already registered')
+        return value
+
+    def update(self, instance, validated_data):
+        first_name = validated_data.pop('first_name', None)
+        last_name = validated_data.pop('last_name', None)
+        if first_name is not None or last_name is not None:
+            user = instance.user
+            if first_name is not None:
+                user.first_name = first_name
+                instance.first_name = first_name
+            if last_name is not None:
+                user.last_name = last_name
+                instance.last_name = last_name
+            user.save()
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+
+
+class DriverOwnedVehicleSerializer(VehicleSerializer):
+    """Vehicle fields a driver may edit on their currently assigned vehicle."""
+
+    class Meta(VehicleSerializer.Meta):
+        read_only_fields = ['id', 'capacity_display', 'full_model', 'active']
+
+    def validate_license_plate(self, value):
+        qs = Vehicle.objects.filter(license_plate=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError('This license plate is already registered')
+        return value
+
+    def validate_vin(self, value):
+        value = value.upper()
+        qs = Vehicle.objects.filter(vin=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError('This VIN is already registered')
+        return super().validate_vin(value)
+
+
 class DriverVehicleSerializer(serializers.ModelSerializer):
     driver_name = serializers.SerializerMethodField(read_only=True)
     vehicle_license_plate = serializers.CharField(source='vehicle.license_plate', read_only=True)

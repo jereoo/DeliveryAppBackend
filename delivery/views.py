@@ -11,10 +11,13 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
 from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer
+from .driver_utils import get_driver_for_user, get_current_assignment
 from .serializers import (DeliverySerializer, DriverSerializer, VehicleSerializer, DriverVehicleSerializer, 
                          DeliveryAssignmentSerializer, DriverWithVehicleSerializer, CustomerSerializer, 
-                         CustomerRegistrationSerializer, DeliveryCreateSerializer, DriverRegistrationSerializer)
+                         CustomerRegistrationSerializer, DeliveryCreateSerializer, DriverRegistrationSerializer,
+                         DriverMeSerializer, DriverOwnedVehicleSerializer)
 
 class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all()
@@ -103,15 +106,60 @@ class DriverViewSet(viewsets.ModelViewSet):
     queryset = Driver.objects.all()
     serializer_class = DriverSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return Driver.objects.all()
+        return Driver.objects.filter(user=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            raise PermissionDenied('Only staff can create drivers via this endpoint. Use /drivers/register/.')
+        return super().create(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            raise PermissionDenied('Only staff can delete drivers.')
+        return super().destroy(request, *args, **kwargs)
+
+    @action(detail=False, methods=['get', 'patch'])
+    def me(self, request):
+        """Get or update the authenticated user's driver profile."""
+        driver = get_driver_for_user(request.user)
+        if not driver:
+            return Response({'error': 'Driver profile not found'}, status=status.HTTP_404_NOT_FOUND)
+        if request.method == 'GET':
+            return Response(DriverMeSerializer(driver).data)
+        serializer = DriverMeSerializer(driver, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(DriverMeSerializer(driver).data)
+
+    @action(detail=False, methods=['get', 'patch'], url_path='me/vehicle')
+    def me_vehicle(self, request):
+        """Get or update the vehicle currently assigned to the authenticated driver."""
+        driver = get_driver_for_user(request.user)
+        if not driver:
+            return Response({'error': 'Driver profile not found'}, status=status.HTTP_404_NOT_FOUND)
+        assignment = get_current_assignment(driver)
+        if not assignment or not assignment.vehicle:
+            return Response({'error': 'No vehicle assigned to this driver'}, status=status.HTTP_404_NOT_FOUND)
+        vehicle = assignment.vehicle
+        if request.method == 'GET':
+            return Response(DriverOwnedVehicleSerializer(vehicle).data)
+        serializer = DriverOwnedVehicleSerializer(vehicle, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(DriverOwnedVehicleSerializer(vehicle).data)
     
     def list(self, request, *args, **kwargs):
-        """Override list to include available vehicles for driver creation"""
+        """Override list to include available vehicles for admin driver creation."""
         response = super().list(request, *args, **kwargs)
-        
-        # Add available vehicles to the response for frontend convenience
-        available_vehicles = Vehicle.objects.filter(active=True).values('id', 'license_plate', 'model', 'capacity')
-        response.data['available_vehicles'] = list(available_vehicles)
-        
+        if request.user.is_staff and isinstance(response.data, dict):
+            available_vehicles = Vehicle.objects.filter(active=True).values(
+                'id', 'license_plate', 'model', 'capacity'
+            )
+            response.data['available_vehicles'] = list(available_vehicles)
         return response
     
     @action(detail=False, methods=['get'])
