@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer
 from .driver_utils import get_driver_for_user, get_current_assignment
+from .vehicle_utils import deactivate_vehicle, reactivate_vehicle, vehicle_has_history
 from .serializers import (DeliverySerializer, DriverSerializer, VehicleSerializer, DriverVehicleSerializer, 
                          DeliveryAssignmentSerializer, DriverWithVehicleSerializer, CustomerSerializer, 
                          CustomerRegistrationSerializer, DeliveryCreateSerializer, DriverRegistrationSerializer,
@@ -151,6 +152,43 @@ class DriverViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(DriverOwnedVehicleSerializer(vehicle).data)
+
+    @action(detail=False, methods=['post'], url_path='me/vehicle/deactivate')
+    def me_vehicle_deactivate(self, request):
+        """Driver marks their currently assigned vehicle inactive (sold, repair, etc.)."""
+        driver = get_driver_for_user(request.user)
+        if not driver:
+            return Response({'error': 'Driver profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        assignment = get_current_assignment(driver)
+        if not assignment or not assignment.vehicle:
+            return Response({'error': 'No vehicle assigned to this driver'}, status=status.HTTP_404_NOT_FOUND)
+
+        vehicle = assignment.vehicle
+        if not vehicle.active:
+            return Response(
+                {
+                    'detail': 'Vehicle is already inactive.',
+                    'id': vehicle.id,
+                    'active': False,
+                    'deactivated': True,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        deactivate_vehicle(vehicle)
+        return Response(
+            {
+                'detail': (
+                    'Your vehicle has been marked inactive. '
+                    'Contact admin to assign a new vehicle or reactivate this one.'
+                ),
+                'id': vehicle.id,
+                'active': False,
+                'deactivated': True,
+            },
+            status=status.HTTP_200_OK,
+        )
     
     def list(self, request, *args, **kwargs):
         """Override list to include available vehicles for admin driver creation."""
@@ -271,6 +309,73 @@ class VehicleViewSet(viewsets.ModelViewSet):
     queryset = Vehicle.objects.all()
     serializer_class = VehicleSerializer
     permission_classes = [IsAuthenticated]
+
+    def _require_staff(self, request):
+        if not request.user.is_staff:
+            raise PermissionDenied('Only staff can modify vehicles.')
+
+    def create(self, request, *args, **kwargs):
+        self._require_staff(request)
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        self._require_staff(request)
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        self._require_staff(request)
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        self._require_staff(request)
+        vehicle = self.get_object()
+        if vehicle_has_history(vehicle):
+            deactivate_vehicle(vehicle)
+            return Response(
+                {
+                    'detail': (
+                        'Vehicle has driver or delivery assignment history; '
+                        'marked inactive instead of deleted.'
+                    ),
+                    'id': vehicle.id,
+                    'active': False,
+                    'deactivated': True,
+                },
+                status=status.HTTP_200_OK,
+            )
+        return super().destroy(request, *args, **kwargs)
+
+    @action(detail=True, methods=['post'], url_path='deactivate')
+    def deactivate(self, request, pk=None):
+        self._require_staff(request)
+        vehicle = self.get_object()
+        deactivate_vehicle(vehicle)
+        return Response(
+            {
+                'detail': 'Vehicle marked inactive.',
+                'id': vehicle.id,
+                'active': False,
+                'deactivated': True,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['post'], url_path='reactivate')
+    def reactivate(self, request, pk=None):
+        self._require_staff(request)
+        vehicle = self.get_object()
+        reactivate_vehicle(vehicle)
+        return Response(
+            {
+                'detail': (
+                    'Vehicle reactivated. '
+                    'Insurance/registration reverification will be required in a future release.'
+                ),
+                'id': vehicle.id,
+                'active': True,
+            },
+            status=status.HTTP_200_OK,
+        )
     
     def list(self, request, *args, **kwargs):
         """Override list to include capacity unit choices for forms"""

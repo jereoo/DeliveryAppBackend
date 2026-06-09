@@ -470,6 +470,117 @@ class DriverSelfServiceAPITests(APITestCase):
         response = self.client.get(f'/api/drivers/{self.other_driver.id}/')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_driver_me_vehicle_deactivate(self):
+        response = self.client.post('/api/drivers/me/vehicle/deactivate/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['deactivated'])
+        self.assertFalse(response.data['active'])
+        self.vehicle.refresh_from_db()
+        self.assertFalse(self.vehicle.active)
+
+    def test_driver_cannot_delete_vehicle(self):
+        response = self.client.delete(f'/api/vehicles/{self.vehicle.id}/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class VehicleLifecycleAPITests(APITestCase):
+    """Staff/driver vehicle inactive, reactivate, and delete rules."""
+
+    def setUp(self):
+        from django.utils import timezone
+        from delivery.models import DriverVehicle
+
+        self.staff = User.objects.create_user(
+            username='staff1',
+            password='testpass123',
+            is_staff=True,
+        )
+        self.driver_user = User.objects.create_user(
+            username='fleetdriver',
+            password='testpass123',
+        )
+        self.driver = Driver.objects.create(
+            user=self.driver_user,
+            first_name='Fleet',
+            last_name='Driver',
+            phone_number='5551234567',
+            license_number='DL-FLEET-001',
+            active=True,
+        )
+        self.vehicle = Vehicle.objects.create(
+            license_plate='FLEET001',
+            make='Ford',
+            model='Transit',
+            year=2021,
+            vin='1FLEETTEST0000001',
+            capacity=1500,
+            capacity_unit='kg',
+            active=True,
+        )
+        self.bare_vehicle = Vehicle.objects.create(
+            license_plate='BARE001',
+            make='Toyota',
+            model='Hiace',
+            year=2020,
+            vin='1BARETEST00000001',
+            capacity=1200,
+            capacity_unit='kg',
+            active=True,
+        )
+        DriverVehicle.objects.create(
+            driver=self.driver,
+            vehicle=self.vehicle,
+            assigned_from=timezone.now().date(),
+        )
+
+        staff_client = APIClient()
+        staff_client.credentials(
+            HTTP_AUTHORIZATION=f'Bearer {RefreshToken.for_user(self.staff).access_token}'
+        )
+        self.staff_client = staff_client
+
+        driver_client = APIClient()
+        driver_client.credentials(
+            HTTP_AUTHORIZATION=f'Bearer {RefreshToken.for_user(self.driver_user).access_token}'
+        )
+        self.driver_client = driver_client
+
+    def test_staff_deactivate_vehicle(self):
+        response = self.staff_client.post(f'/api/vehicles/{self.vehicle.id}/deactivate/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['deactivated'])
+        self.vehicle.refresh_from_db()
+        self.assertFalse(self.vehicle.active)
+
+    def test_staff_reactivate_vehicle(self):
+        self.vehicle.active = False
+        self.vehicle.save(update_fields=['active'])
+        response = self.staff_client.post(f'/api/vehicles/{self.vehicle.id}/reactivate/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['active'])
+        self.vehicle.refresh_from_db()
+        self.assertTrue(self.vehicle.active)
+
+    def test_staff_delete_with_history_soft_deactivates(self):
+        response = self.staff_client.delete(f'/api/vehicles/{self.vehicle.id}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['deactivated'])
+        self.assertTrue(Vehicle.objects.filter(pk=self.vehicle.pk).exists())
+        self.vehicle.refresh_from_db()
+        self.assertFalse(self.vehicle.active)
+
+    def test_staff_delete_without_history_hard_deletes(self):
+        bare_id = self.bare_vehicle.id
+        response = self.staff_client.delete(f'/api/vehicles/{bare_id}/')
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Vehicle.objects.filter(pk=bare_id).exists())
+
+    def test_driver_cannot_reactivate_vehicle(self):
+        self.vehicle.active = False
+        self.vehicle.save(update_fields=['active'])
+        response = self.driver_client.post(f'/api/vehicles/{self.vehicle.id}/reactivate/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
 
 class APIPaginationTests(APITestCase):
     """Test API pagination functionality"""
