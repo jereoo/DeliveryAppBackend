@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer
-from .driver_utils import get_driver_for_user, get_current_assignment
+from .driver_utils import get_driver_for_user, get_current_assignment, get_driver_vehicle
 from .vehicle_utils import deactivate_vehicle, reactivate_vehicle, vehicle_has_history
 from .serializers import (DeliverySerializer, DriverSerializer, VehicleSerializer, DriverVehicleSerializer, 
                          DeliveryAssignmentSerializer, DriverWithVehicleSerializer, CustomerSerializer, 
@@ -142,15 +142,22 @@ class DriverViewSet(viewsets.ModelViewSet):
         driver = get_driver_for_user(request.user)
         if not driver:
             return Response({'error': 'Driver profile not found'}, status=status.HTTP_404_NOT_FOUND)
-        assignment = get_current_assignment(driver)
-        if not assignment or not assignment.vehicle:
+        vehicle = get_driver_vehicle(driver)
+        if not vehicle:
             return Response({'error': 'No vehicle assigned to this driver'}, status=status.HTTP_404_NOT_FOUND)
-        vehicle = assignment.vehicle
         if request.method == 'GET':
             return Response(DriverOwnedVehicleSerializer(vehicle).data)
+        assignment = get_current_assignment(driver)
+        if not assignment or assignment.vehicle_id != vehicle.id:
+            if not vehicle.active:
+                return Response(
+                    {'error': 'Vehicle is inactive. Contact admin to reactivate before editing.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
         serializer = DriverOwnedVehicleSerializer(vehicle, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        vehicle.refresh_from_db()
         return Response(DriverOwnedVehicleSerializer(vehicle).data)
 
     @action(detail=False, methods=['post'], url_path='me/vehicle/deactivate')
@@ -160,11 +167,9 @@ class DriverViewSet(viewsets.ModelViewSet):
         if not driver:
             return Response({'error': 'Driver profile not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        assignment = get_current_assignment(driver)
-        if not assignment or not assignment.vehicle:
+        vehicle = get_driver_vehicle(driver)
+        if not vehicle:
             return Response({'error': 'No vehicle assigned to this driver'}, status=status.HTTP_404_NOT_FOUND)
-
-        vehicle = assignment.vehicle
         if not vehicle.active:
             return Response(
                 {

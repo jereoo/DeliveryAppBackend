@@ -19,8 +19,21 @@ def get_current_assignment(driver):
     today = timezone.now().date()
     return (
         DriverVehicle.objects.filter(driver=driver, assigned_from__lte=today)
-        .filter(models.Q(assigned_to__isnull=True) | models.Q(assigned_to__gte=today))
+        .filter(models.Q(assigned_to__isnull=True) | models.Q(assigned_to__gt=today))
         .select_related('vehicle')
         .order_by('-assigned_from')
         .first()
     )
+
+
+def get_driver_vehicle(driver):
+    """Latest vehicle assigned to this driver (includes inactive / ended rows)."""
+    if not driver:
+        return None
+    row = (
+        DriverVehicle.objects.filter(driver=driver, vehicle__isnull=False)
+        .select_related('vehicle')
+        .order_by('-assigned_from')
+        .first()
+    )
+    return row.vehicle if row else None

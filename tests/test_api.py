@@ -459,6 +459,21 @@ class DriverSelfServiceAPITests(APITestCase):
         self.vehicle.refresh_from_db()
         self.assertEqual(self.vehicle.model, 'Transit XL')
 
+    def test_driver_me_vehicle_patch_mark_inactive(self):
+        response = self.client.patch('/api/drivers/me/vehicle/', {
+            'active': False,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data['active'])
+        self.vehicle.refresh_from_db()
+        self.assertFalse(self.vehicle.active)
+
+    def test_driver_cannot_reactivate_own_vehicle(self):
+        self.vehicle.active = False
+        self.vehicle.save(update_fields=['active'])
+        response = self.client.patch('/api/drivers/me/vehicle/', {'active': True}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_driver_cannot_list_other_drivers(self):
         response = self.client.get('/api/drivers/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)

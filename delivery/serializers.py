@@ -443,8 +443,24 @@ class DriverMeSerializer(serializers.ModelSerializer):
 class DriverOwnedVehicleSerializer(VehicleSerializer):
     """Vehicle fields a driver may edit on their currently assigned vehicle."""
 
+    active = serializers.BooleanField(required=False)
+
     class Meta(VehicleSerializer.Meta):
-        read_only_fields = ['id', 'capacity_display', 'full_model', 'active']
+        read_only_fields = ['id', 'capacity_display', 'full_model']
+
+    def validate_active(self, value):
+        if self.instance and not self.instance.active and value is True:
+            raise serializers.ValidationError('Only staff can reactivate a vehicle.')
+        return value
+
+    def update(self, instance, validated_data):
+        mark_inactive = validated_data.get('active') is False and instance.active
+        instance = super().update(instance, validated_data)
+        if mark_inactive:
+            from .vehicle_utils import deactivate_vehicle
+            deactivate_vehicle(instance)
+            instance.refresh_from_db()
+        return instance
 
     def validate_license_plate(self, value):
         qs = Vehicle.objects.filter(license_plate=value)
