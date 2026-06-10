@@ -81,6 +81,49 @@ if (-not $AdminPassword) {
         Test-Step "List deliveries (CRUD read)" {
             $null = Invoke-RestMethod -Uri "$ApiBase/api/deliveries/" -Method GET -Headers $authHeaders -TimeoutSec 30
         }
+
+        Test-Step "Vehicle lifecycle routes (staff deactivate/reactivate)" {
+            # Non-existent id → 404 proves route is registered (not 405 Method Not Allowed on wrong verb)
+            try {
+                Invoke-RestMethod -Uri "$ApiBase/api/vehicles/999999/deactivate/" -Method POST -Headers $authHeaders -TimeoutSec 30
+                throw 'Expected 404 for missing vehicle'
+            } catch {
+                $status = $null
+                if ($_.Exception.Response) {
+                    $status = [int]$_.Exception.Response.StatusCode
+                }
+                if ($status -ne 404) {
+                    throw "Expected HTTP 404, got $status"
+                }
+            }
+            try {
+                Invoke-RestMethod -Uri "$ApiBase/api/vehicles/999999/reactivate/" -Method POST -Headers $authHeaders -TimeoutSec 30
+                throw 'Expected 404 for missing vehicle'
+            } catch {
+                $status = $null
+                if ($_.Exception.Response) {
+                    $status = [int]$_.Exception.Response.StatusCode
+                }
+                if ($status -ne 404) {
+                    throw "Expected HTTP 404, got $status"
+                }
+            }
+        }
+
+        Test-Step "Driver vehicle deactivate route (unauthenticated → 401)" {
+            try {
+                Invoke-RestMethod -Uri "$ApiBase/api/drivers/me/vehicle/deactivate/" -Method POST -Headers $headers -TimeoutSec 30
+                throw 'Expected 401 without token'
+            } catch {
+                $status = $null
+                if ($_.Exception.Response) {
+                    $status = [int]$_.Exception.Response.StatusCode
+                }
+                if ($status -ne 401) {
+                    throw "Expected HTTP 401, got $status"
+                }
+            }
+        }
     }
 }
 
