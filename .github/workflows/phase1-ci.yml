@@ -50,7 +50,18 @@ jobs:
       - name: Run migrations
         run: python manage.py migrate --noinput
 
-      - name: Run Django tests
+      - name: Run critical backend tests
+        run: |
+          python manage.py test \
+            tests.test_api.AuthenticationAPITests \
+            tests.test_api.DriverSelfServiceAPITests \
+            tests.test_api.VehicleLifecycleAPITests \
+            tests.test_driver_vehicle_crud \
+            tests.test_registration_validation \
+            tests.test_auth_logging \
+            --verbosity=1 --no-input
+
+      - name: Run full Django test suite
         run: python manage.py test --verbosity=1 --no-input
         continue-on-error: true
 

@@ -15,6 +15,7 @@ from rest_framework.exceptions import PermissionDenied
 from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer
 from .driver_utils import get_driver_for_user, get_current_assignment, get_driver_vehicle
 from .vehicle_utils import deactivate_vehicle, reactivate_vehicle, vehicle_has_history
+from .auth_logging import log_registration_validation_failure
 from .serializers import (DeliverySerializer, DriverSerializer, VehicleSerializer, DriverVehicleSerializer, 
                          DeliveryAssignmentSerializer, DriverWithVehicleSerializer, CustomerSerializer, 
                          CustomerRegistrationSerializer, DeliveryCreateSerializer, DriverRegistrationSerializer,
@@ -41,6 +42,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
                 'message': 'Customer registered successfully',
                 'customer': CustomerSerializer(customer).data
             }, status=status.HTTP_201_CREATED)
+        log_registration_validation_failure(request, 'customer', serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['get'])
@@ -307,6 +309,7 @@ class DriverViewSet(viewsets.ModelViewSet):
                     'details': str(e)
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
+        log_registration_validation_failure(request, 'driver', serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

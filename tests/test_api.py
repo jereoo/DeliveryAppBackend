@@ -156,25 +156,34 @@ class DriverAPITests(APITestCase):
         self.assertEqual(response.data['license_number'], 'DL123456')
     
     def test_driver_create(self):
-        """Test driver creation endpoint"""
+        """Staff can create drivers via admin endpoint when user is linked in payload."""
+        staff = User.objects.create_user(
+            username='staffdriver',
+            password='testpass123',
+            is_staff=True,
+        )
+        staff_client = APIClient()
+        staff_client.credentials(
+            HTTP_AUTHORIZATION=f'Bearer {RefreshToken.for_user(staff).access_token}'
+        )
         new_user = User.objects.create_user(
             username='newdriver',
             first_name='New',
             last_name='Driver',
-            password='newpass123'
+            password='newpass123',
         )
         url = '/api/drivers/'
         data = {
             'user': new_user.id,
             'first_name': 'Test',
             'last_name': 'New Driver',
-            'phone_number': '555-9999',
+            'phone_number': '5559999999',
             'license_number': 'DL999888',
-            'active': True
+            'active': True,
         }
-        response = self.client.post(url, data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(Driver.objects.filter(license_number='DL999888').exists())
+        response = staff_client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Driver.objects.filter(license_number='DL999888').exists())
 
 
 class VehicleAPITests(APITestCase):

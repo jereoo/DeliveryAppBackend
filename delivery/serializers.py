@@ -3,6 +3,13 @@ from rest_framework import serializers
 from django.db import models
 from django.contrib.auth.models import User
 from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer
+from .registration_messages import (
+    EMAIL_TAKEN,
+    LICENSE_NUMBER_TAKEN,
+    LICENSE_PLATE_TAKEN,
+    USERNAME_TAKEN,
+    VIN_TAKEN,
+)
 
 class CustomerSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username')
@@ -82,12 +89,12 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
     
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
-            raise serializers.ValidationError("Username already exists")
+            raise serializers.ValidationError(USERNAME_TAKEN)
         return value
     
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("Email already registered")
+            raise serializers.ValidationError(EMAIL_TAKEN)
         return value
 
     def validate_phone_number(self, value):
@@ -419,7 +426,7 @@ class DriverMeSerializer(serializers.ModelSerializer):
         if self.instance:
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
-            raise serializers.ValidationError('This license number is already registered')
+            raise serializers.ValidationError(LICENSE_NUMBER_TAKEN)
         return value
 
     def update(self, instance, validated_data):
@@ -467,7 +474,7 @@ class DriverOwnedVehicleSerializer(VehicleSerializer):
         if self.instance:
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
-            raise serializers.ValidationError('This license plate is already registered')
+            raise serializers.ValidationError(LICENSE_PLATE_TAKEN)
         return value
 
     def validate_vin(self, value):
@@ -476,7 +483,7 @@ class DriverOwnedVehicleSerializer(VehicleSerializer):
         if self.instance:
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
-            raise serializers.ValidationError('This VIN is already registered')
+            raise serializers.ValidationError(VIN_TAKEN)
         return super().validate_vin(value)
 
 
@@ -577,6 +584,9 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
         fields = ['username', 'email', 'password', 'first_name', 'last_name', 'full_name',
                  'phone_number', 'license_number', 'vehicle_license_plate', 'vehicle_make',
                  'vehicle_model', 'vehicle_year', 'vehicle_vin', 'vehicle_capacity', 'vehicle_capacity_unit']
+        extra_kwargs = {
+            'license_number': {'validators': []},
+        }
     
     def validate(self, data):
         """Validate and process name fields"""
@@ -607,30 +617,30 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
     
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
-            raise serializers.ValidationError("Username already exists")
+            raise serializers.ValidationError(USERNAME_TAKEN)
         return value
     
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("Email already registered")
+            raise serializers.ValidationError(EMAIL_TAKEN)
         return value
     
     def validate_license_number(self, value):
         """Ensure license number is unique"""
         if Driver.objects.filter(license_number=value).exists():
-            raise serializers.ValidationError("This license number is already registered")
+            raise serializers.ValidationError(LICENSE_NUMBER_TAKEN)
         return value
     
     def validate_vehicle_license_plate(self, value):
         """Ensure vehicle license plate is unique"""
         if Vehicle.objects.filter(license_plate=value).exists():
-            raise serializers.ValidationError("This vehicle license plate is already registered")
+            raise serializers.ValidationError(LICENSE_PLATE_TAKEN)
         return value
     
     def validate_vehicle_vin(self, value):
         """Ensure vehicle VIN is unique and properly formatted"""
         if Vehicle.objects.filter(vin=value).exists():
-            raise serializers.ValidationError("This vehicle VIN is already registered")
+            raise serializers.ValidationError(VIN_TAKEN)
         if len(value) != 17:
             raise serializers.ValidationError("VIN must be exactly 17 characters")
         return value.upper()
