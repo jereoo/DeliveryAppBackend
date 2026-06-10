@@ -3,6 +3,11 @@ from rest_framework import serializers
 from django.db import models
 from django.contrib.auth.models import User
 from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer
+from .vehicle_constants import (
+    MAX_VEHICLE_CAPACITY_KG,
+    MAX_VEHICLE_CAPACITY_LB,
+    max_vehicle_capacity_for_unit,
+)
 from .registration_messages import (
     EMAIL_TAKEN,
     LICENSE_NUMBER_TAKEN,
@@ -374,13 +379,29 @@ class VehicleSerializer(serializers.ModelSerializer):
         model = Vehicle
         fields = ['id', 'license_plate', 'make', 'model', 'year', 'vin', 'capacity', 'capacity_unit', 'capacity_display', 'full_model', 'active']
     
-    def validate_capacity(self, value):
-        """Validate capacity is reasonable"""
-        if value <= 0:
-            raise serializers.ValidationError("Capacity must be greater than 0")
-        if value > 50000:  # 50,000 kg or lb seems like a reasonable max
-            raise serializers.ValidationError("Capacity seems unreasonably high")
-        return value
+    def validate(self, data):
+        capacity = data.get('capacity')
+        if capacity is None and self.instance:
+            capacity = self.instance.capacity
+        unit = data.get('capacity_unit')
+        if unit is None and self.instance:
+            unit = self.instance.capacity_unit
+        if unit is None:
+            unit = 'kg'
+        if capacity is not None:
+            if capacity <= 0:
+                raise serializers.ValidationError({
+                    'capacity': 'Capacity must be greater than 0',
+                })
+            max_cap = max_vehicle_capacity_for_unit(unit)
+            if capacity > max_cap:
+                raise serializers.ValidationError({
+                    'capacity': (
+                        f'Capacity cannot exceed {max_cap} {unit} '
+                        f'(max {MAX_VEHICLE_CAPACITY_KG} kg / {MAX_VEHICLE_CAPACITY_LB} lb).'
+                    ),
+                })
+        return data
     
     def validate_year(self, value):
         """Validate year is reasonable"""
@@ -612,6 +633,22 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'name': 'Please provide either full_name or both first_name and last_name'
             })
+
+        capacity = data.get('vehicle_capacity')
+        unit = data.get('vehicle_capacity_unit', 'kg')
+        if capacity is not None:
+            if capacity <= 0:
+                raise serializers.ValidationError({
+                    'vehicle_capacity': 'Capacity must be greater than 0',
+                })
+            max_cap = max_vehicle_capacity_for_unit(unit)
+            if capacity > max_cap:
+                raise serializers.ValidationError({
+                    'vehicle_capacity': (
+                        f'Capacity cannot exceed {max_cap} {unit} '
+                        f'(max {MAX_VEHICLE_CAPACITY_KG} kg / {MAX_VEHICLE_CAPACITY_LB} lb).'
+                    ),
+                })
         
         return data
     

@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer
 from .driver_utils import get_driver_for_user, get_current_assignment, get_driver_vehicle
+from .vehicle_constants import MAX_VEHICLE_CAPACITY_KG, MAX_VEHICLE_CAPACITY_LB
 from .vehicle_utils import deactivate_vehicle, reactivate_vehicle, vehicle_has_history
 from .auth_logging import log_registration_validation_failure
 from .serializers import (DeliverySerializer, DriverSerializer, VehicleSerializer, DriverVehicleSerializer, 
@@ -400,7 +401,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
         return Response({
             'capacity_unit_choices': Vehicle.CAPACITY_UNIT_CHOICES,
             'help': {
-                'capacity': 'Enter the vehicle load capacity as a positive number',
+                'capacity': f'Enter load capacity (max {MAX_VEHICLE_CAPACITY_KG} kg or {MAX_VEHICLE_CAPACITY_LB} lb)',
                 'capacity_unit': 'Choose the unit of measurement (kg for kilograms, lb for pounds)',
                 'license_plate': 'Enter unique vehicle license plate',
                 'model': 'Enter vehicle model name'

@@ -14,6 +14,7 @@ from rest_framework.test import APITestCase, APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from delivery.models import Driver, DriverVehicle, Vehicle
+from delivery.vehicle_constants import MAX_VEHICLE_CAPACITY_KG, MAX_VEHICLE_CAPACITY_LB, max_vehicle_capacity_for_unit
 
 
 def auth_client(user):
@@ -260,6 +261,24 @@ class DriverOwnedVehicleCRUDTests(APITestCase, DriverVehicleCRUDFixtures):
         self.assertEqual(response.data['license_plate'], self.vehicle.license_plate)
         self.assertIn('active', response.data)
         self.assertTrue(response.data['active'])
+
+    def test_driver_me_vehicle_patch_rejects_capacity_over_kg_limit(self):
+        response = self.client.patch('/api/drivers/me/vehicle/', {
+            'capacity': MAX_VEHICLE_CAPACITY_KG + 1,
+            'capacity_unit': 'kg',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('capacity', response.data)
+
+    def test_driver_me_vehicle_patch_allows_capacity_at_lb_limit(self):
+        response = self.client.patch('/api/drivers/me/vehicle/', {
+            'capacity': MAX_VEHICLE_CAPACITY_LB,
+            'capacity_unit': 'lb',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.vehicle.refresh_from_db()
+        self.assertEqual(self.vehicle.capacity, MAX_VEHICLE_CAPACITY_LB)
+        self.assertEqual(self.vehicle.capacity_unit, 'lb')
 
     def test_driver_me_vehicle_patch_updates_fields(self):
         response = self.client.patch('/api/drivers/me/vehicle/', {
