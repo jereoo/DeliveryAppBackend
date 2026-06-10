@@ -568,13 +568,22 @@ class VehicleLifecycleAPITests(APITestCase):
         self.assertFalse(self.vehicle.active)
 
     def test_staff_reactivate_vehicle(self):
+        from django.utils import timezone
+        from delivery.models import DriverVehicle
+
         self.vehicle.active = False
         self.vehicle.save(update_fields=['active'])
+        assignment = DriverVehicle.objects.get(driver=self.driver, vehicle=self.vehicle)
+        assignment.assigned_to = timezone.now().date()
+        assignment.save(update_fields=['assigned_to'])
+
         response = self.staff_client.post(f'/api/vehicles/{self.vehicle.id}/reactivate/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['active'])
         self.vehicle.refresh_from_db()
         self.assertTrue(self.vehicle.active)
+        assignment.refresh_from_db()
+        self.assertIsNone(assignment.assigned_to)
 
     def test_staff_delete_with_history_soft_deactivates(self):
         response = self.staff_client.delete(f'/api/vehicles/{self.vehicle.id}/')

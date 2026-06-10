@@ -34,7 +34,7 @@ def deactivate_vehicle(vehicle: Vehicle, *, close_assignments: bool = True) -> V
 
 def reactivate_vehicle(vehicle: Vehicle) -> Vehicle:
     """
-    Mark vehicle active again.
+    Mark vehicle active again and reopen the latest driver assignment if it was closed.
 
     Phase 4: enforce insurance/registration reverification before allowing this.
     """
@@ -45,4 +45,14 @@ def reactivate_vehicle(vehicle: Vehicle) -> Vehicle:
             'Vehicle %s reactivated; compliance reverification not yet enforced (Phase 4)',
             vehicle.id,
         )
+
+    latest_assignment = (
+        DriverVehicle.objects.filter(vehicle=vehicle)
+        .order_by('-assigned_from')
+        .first()
+    )
+    if latest_assignment and latest_assignment.assigned_to is not None:
+        latest_assignment.assigned_to = None
+        latest_assignment.save(update_fields=['assigned_to'])
+
     return vehicle
