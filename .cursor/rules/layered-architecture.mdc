@@ -1,0 +1,27 @@
+---
+description: DRF layered architecture — ViewSets thin, logic in services, auth in permissions
+globs: delivery/**/*.py
+alwaysApply: false
+---
+
+# Backend Layered Architecture
+
+See also: workspace rule `layered-architecture.mdc`.
+
+- **ViewSets** (`views.py`): HTTP routing only — no business rules or role checks inline.
+- **Permissions** (`permissions.py`): RBAC — staff vs driver, resource ownership.
+- **Services** (`vehicle_update.py`, `*_service.py`): shared create/update/delete and business rules.
+- **Serializers**: field validation and representation; no cross-entity workflow logic.
+- **Models**: fields, relations, and simple instance methods only.
+
+Admin and Driver endpoints must call the **same service** (e.g. `update_vehicle()`), not duplicate logic.
+
+When refactoring authorization out of services, extract to permission classes without changing service behavior.
+
+## v1.0 scope (backend)
+
+**In scope:** Admin (`is_staff`), Driver, Customer — single global dataset, no tenant isolation.
+
+**Defer to v2.0 / Phase 5:** Dispatcher role, `Organization` models, `organization_id` FKs, org-scoped querysets.
+
+Admin implicitly handles dispatch/assignment in v1.0. Do not add org or dispatcher abstractions until v2.0.
