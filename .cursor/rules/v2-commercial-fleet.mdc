@@ -1,0 +1,20 @@
+---
+description: v2.0 Phase 5 backend — multi-tenant, compliance, dispatch (NOT v1.0)
+globs: delivery/**/*.py
+alwaysApply: false
+---
+
+# v2.0 Commercial Fleet — Backend (Phase 5 only)
+
+**Inactive until Phase 5.** For current work, use `layered-architecture.mdc`.
+
+Full spec: workspace `v2-commercial-fleet.mdc`.
+
+When Phase 5 begins:
+
+- Add `Organization`, org-scoped querysets, `permissions.py` RBAC
+- Eligibility and dispatch rules **only** in services (`compliance_service.py`, `dispatch_service.py`)
+- Extend `vehicle_update.py` — do not duplicate Admin/Dispatcher/Driver update paths
+- Migrate driver onboarding from simple `active` to state machine deliberately
+
+Never add `organization_id` or compliance gates to v1.0 endpoints without an explicit Phase 5 task.
