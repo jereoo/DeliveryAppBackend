@@ -341,6 +341,46 @@ class DriverOwnedVehicleCRUDTests(APITestCase, DriverVehicleCRUDFixtures):
         response = self.client.post(f'/api/vehicles/{self.vehicle.id}/reactivate/')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_driver_patches_assigned_vehicle_via_vehicles_endpoint(self):
+        response = self.client.patch(f'/api/vehicles/{self.vehicle.id}/', {
+            'make': 'Chevrolet',
+            'model': 'Express',
+            'capacity': 2000,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.vehicle.refresh_from_db()
+        self.assertEqual(self.vehicle.make, 'Chevrolet')
+        self.assertEqual(self.vehicle.model, 'Express')
+        self.assertEqual(self.vehicle.capacity, 2000)
+
+    def test_driver_cannot_patch_other_vehicle_via_vehicles_endpoint(self):
+        other_vehicle = self.create_vehicle('other')
+        response = self.client.patch(f'/api/vehicles/{other_vehicle.id}/', {
+            'model': 'Hijacked',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        other_vehicle.refresh_from_db()
+        self.assertNotEqual(other_vehicle.model, 'Hijacked')
+
+    def test_driver_cannot_edit_inactive_vehicle_via_vehicles_endpoint(self):
+        self.client.post('/api/drivers/me/vehicle/deactivate/')
+        response = self.client.patch(f'/api/vehicles/{self.vehicle.id}/', {
+            'model': 'Should Fail',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.vehicle.refresh_from_db()
+        self.assertNotEqual(self.vehicle.model, 'Should Fail')
+
+    def test_driver_can_get_assigned_vehicle_via_vehicles_endpoint(self):
+        response = self.client.get(f'/api/vehicles/{self.vehicle.id}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['license_plate'], self.vehicle.license_plate)
+
+    def test_driver_cannot_get_other_vehicle_via_vehicles_endpoint(self):
+        other_vehicle = self.create_vehicle('hidden')
+        response = self.client.get(f'/api/vehicles/{other_vehicle.id}/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
     def test_staff_reactivate_after_driver_deactivates(self):
         self.client.patch('/api/drivers/me/vehicle/', {'active': False}, format='json')
         self.vehicle.refresh_from_db()

@@ -12,10 +12,12 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
+from django.http import Http404
 from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer
-from .driver_utils import get_driver_for_user, get_current_assignment, get_driver_vehicle
+from .driver_utils import get_driver_for_user, get_driver_vehicle
 from .vehicle_constants import MAX_VEHICLE_CAPACITY_KG, MAX_VEHICLE_CAPACITY_LB
 from .vehicle_utils import deactivate_vehicle, reactivate_vehicle, vehicle_has_history
+from .vehicle_update import serialize_vehicle_for_user, update_vehicle, user_can_read_vehicle
 from .auth_logging import log_registration_validation_failure
 from .serializers import (DeliverySerializer, DriverSerializer, VehicleSerializer, DriverVehicleSerializer, 
                          DeliveryAssignmentSerializer, DriverWithVehicleSerializer, CustomerSerializer, 
@@ -150,18 +152,8 @@ class DriverViewSet(viewsets.ModelViewSet):
             return Response({'error': 'No vehicle assigned to this driver'}, status=status.HTTP_404_NOT_FOUND)
         if request.method == 'GET':
             return Response(DriverOwnedVehicleSerializer(vehicle).data)
-        assignment = get_current_assignment(driver)
-        if not assignment or assignment.vehicle_id != vehicle.id:
-            if not vehicle.active:
-                return Response(
-                    {'error': 'Vehicle is inactive. Contact admin to reactivate before editing.'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-        serializer = DriverOwnedVehicleSerializer(vehicle, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        vehicle.refresh_from_db()
-        return Response(DriverOwnedVehicleSerializer(vehicle).data)
+        vehicle = update_vehicle(request.user, vehicle, request.data, partial=True)
+        return Response(serialize_vehicle_for_user(request.user, vehicle))
 
     @action(detail=False, methods=['post'], url_path='me/vehicle/deactivate')
     def me_vehicle_deactivate(self, request):
@@ -327,13 +319,21 @@ class VehicleViewSet(viewsets.ModelViewSet):
         self._require_staff(request)
         return super().create(request, *args, **kwargs)
 
+    def retrieve(self, request, *args, **kwargs):
+        vehicle = self.get_object()
+        if not user_can_read_vehicle(request.user, vehicle):
+            raise Http404()
+        return Response(serialize_vehicle_for_user(request.user, vehicle))
+
     def update(self, request, *args, **kwargs):
-        self._require_staff(request)
-        return super().update(request, *args, **kwargs)
+        vehicle = self.get_object()
+        vehicle = update_vehicle(request.user, vehicle, request.data, partial=False)
+        return Response(serialize_vehicle_for_user(request.user, vehicle))
 
     def partial_update(self, request, *args, **kwargs):
-        self._require_staff(request)
-        return super().partial_update(request, *args, **kwargs)
+        vehicle = self.get_object()
+        vehicle = update_vehicle(request.user, vehicle, request.data, partial=True)
+        return Response(serialize_vehicle_for_user(request.user, vehicle))
 
     def destroy(self, request, *args, **kwargs):
         self._require_staff(request)
