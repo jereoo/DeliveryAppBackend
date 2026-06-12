@@ -2,7 +2,8 @@
 from rest_framework import serializers
 from django.db import models
 from django.contrib.auth.models import User
-from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer
+from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer, LegalDocument
+from .compliance_constants import DocumentType
 from .vehicle_constants import (
     MAX_VEHICLE_CAPACITY_KG,
     MAX_VEHICLE_CAPACITY_LB,
@@ -724,3 +725,47 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
             assigned_from=timezone.now().date()
         )
         return driver
+
+
+class LegalDocumentSerializer(serializers.ModelSerializer):
+    verified_by_username = serializers.CharField(source='verified_by.username', read_only=True)
+
+    class Meta:
+        model = LegalDocument
+        fields = [
+            'id', 'document_type', 'driver', 'vehicle', 'policy_number', 'issuer',
+            'coverage_type', 'effective_date', 'expiry_date', 'file_key', 'file_name',
+            'status', 'verified_by', 'verified_by_username', 'verified_at',
+            'rejection_reason', 'notes', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'status', 'verified_by', 'verified_by_username', 'verified_at',
+            'rejection_reason', 'created_at', 'updated_at',
+        ]
+
+
+class LegalDocumentCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LegalDocument
+        fields = [
+            'document_type', 'policy_number', 'issuer', 'coverage_type',
+            'effective_date', 'expiry_date', 'file_key', 'file_name', 'notes',
+        ]
+
+    def validate_document_type(self, value):
+        if value not in DocumentType.values:
+            raise serializers.ValidationError('Invalid document type.')
+        return value
+
+
+class LegalDocumentVerifySerializer(serializers.Serializer):
+    notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+
+class LegalDocumentRejectSerializer(serializers.Serializer):
+    rejection_reason = serializers.CharField(required=True, allow_blank=False)
+
+
+class PresignedUploadSerializer(serializers.Serializer):
+    file_name = serializers.CharField(max_length=255)
+    content_type = serializers.CharField(max_length=128)

@@ -1,3 +1,7 @@
+"""
+LEGACY: This command uses removed model fields (Driver.name, Vehicle without make/year/vin).
+Use `python manage.py seed_demo_data` for staging/demo QA or `create_test_data` for bulk local data.
+"""
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from datetime import date, timedelta
@@ -6,7 +10,7 @@ from django.contrib.auth.models import User
 from delivery.models import Driver, Vehicle, DriverVehicle, Delivery, DeliveryAssignment, Customer
 
 class Command(BaseCommand):
-    help = 'Load test data: 50 drivers (40 active), 50 vehicles (40 active), 200 deliveries'
+    help = 'LEGACY bulk load — prefer seed_demo_data or create_test_data'
 
     def add_arguments(self, parser):
         parser.add_argument(

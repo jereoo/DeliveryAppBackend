@@ -2,7 +2,6 @@
 Integration tests for API endpoints and authentication
 Target: Test all REST API functionality and JWT flows
 """
-import pytest
 from django.test import TestCase
 from django.contrib.auth.models import User
 from rest_framework.test import APITestCase, APIClient

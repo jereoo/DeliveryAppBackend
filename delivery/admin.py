@@ -1,7 +1,7 @@
 # delivery/admin.py
 from django.contrib import admin
 from django import forms
-from .models import Delivery, Driver, Vehicle, DeliveryAssignment, DriverVehicle, Customer
+from .models import Delivery, Driver, Vehicle, DeliveryAssignment, DriverVehicle, Customer, LegalDocument
 
 # Custom form for admin, vehicle, driver, delivery assignment
 class DeliveryAssignmentAdminForm(forms.ModelForm):
@@ -106,3 +106,18 @@ class DriverVehicleAdmin(admin.ModelAdmin):
     list_display = ('driver', 'vehicle', 'assigned_from', 'assigned_to')
     list_filter = ('assigned_from', 'assigned_to')
     search_fields = ('driver__user__username', 'driver__user__first_name', 'driver__user__last_name', 'vehicle__license_plate')  # CIO DIRECTIVE: Use User fields
+
+
+@admin.register(LegalDocument)
+class LegalDocumentAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'document_type', 'driver', 'vehicle', 'status',
+        'expiry_date', 'verified_at', 'created_at',
+    )
+    list_filter = ('document_type', 'status', 'coverage_type')
+    search_fields = (
+        'policy_number', 'issuer', 'driver__user__username',
+        'vehicle__license_plate', 'file_name',
+    )
+    readonly_fields = ('verified_at', 'created_at', 'updated_at')
+    raw_id_fields = ('driver', 'vehicle', 'verified_by')

@@ -59,11 +59,12 @@ jobs:
             tests.test_driver_vehicle_crud \
             tests.test_registration_validation \
             tests.test_auth_logging \
+            tests.test_compliance \
+            tests.test_seed_demo_data \
             --verbosity=1 --no-input
 
       - name: Run full Django test suite
         run: python manage.py test --verbosity=1 --no-input
-        continue-on-error: true
 
       - name: Collect static files (smoke test)
         run: python manage.py collectstatic --noinput --dry-run

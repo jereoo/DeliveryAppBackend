@@ -4,6 +4,14 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 import re
 
+from .compliance_constants import (
+    CoverageType,
+    DocumentStatus,
+    DocumentType,
+    DRIVER_DOCUMENT_TYPES,
+    VEHICLE_DOCUMENT_TYPES,
+)
+
 class Customer(models.Model):
     COUNTRY_CHOICES = [
         ('CA', 'Canada'),
@@ -277,3 +285,95 @@ class DeliveryAssignment(models.Model):
 
     class Meta:
         ordering = ['-assigned_at']
+
+
+class LegalDocument(models.Model):
+    """Legal/compliance document metadata for drivers and vehicles (Phase 4A)."""
+
+    document_type = models.CharField(max_length=32, choices=DocumentType.choices)
+    driver = models.ForeignKey(
+        Driver,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='legal_documents',
+    )
+    vehicle = models.ForeignKey(
+        Vehicle,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='legal_documents',
+    )
+    policy_number = models.CharField(max_length=100, blank=True, null=True)
+    issuer = models.CharField(max_length=255, blank=True, null=True, help_text='Carrier, DMV, etc.')
+    coverage_type = models.CharField(
+        max_length=16,
+        choices=CoverageType.choices,
+        blank=True,
+        null=True,
+        help_text='Insurance documents only',
+    )
+    effective_date = models.DateField(blank=True, null=True)
+    expiry_date = models.DateField(blank=True, null=True)
+    file_key = models.CharField(
+        max_length=512,
+        blank=True,
+        null=True,
+        help_text='Private storage object key (S3) after presigned upload',
+    )
+    file_name = models.CharField(max_length=255, blank=True, null=True)
+    status = models.CharField(
+        max_length=16,
+        choices=DocumentStatus.choices,
+        default=DocumentStatus.PENDING,
+    )
+    verified_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='verified_legal_documents',
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        super().clean()
+        doc_type = self.document_type
+
+        if doc_type in DRIVER_DOCUMENT_TYPES:
+            if not self.driver_id:
+                raise ValidationError({'driver': 'Driver is required for driver license documents.'})
+            if self.vehicle_id:
+                raise ValidationError({'vehicle': 'Vehicle must be empty for driver license documents.'})
+        elif doc_type in VEHICLE_DOCUMENT_TYPES:
+            if not self.vehicle_id:
+                raise ValidationError({'vehicle': 'Vehicle is required for this document type.'})
+            if self.driver_id:
+                raise ValidationError({'driver': 'Driver must be empty for vehicle documents.'})
+        else:
+            raise ValidationError({'document_type': 'Unknown document type.'})
+
+        if self.effective_date and self.expiry_date and self.effective_date > self.expiry_date:
+            raise ValidationError({'expiry_date': 'Expiry date must be on or after effective date.'})
+
+    def save(self, *args, **kwargs):
+        if kwargs.pop('validate', True):
+            self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        subject = self.driver or self.vehicle
+        return f'{self.get_document_type_display()} — {subject} ({self.status})'
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['document_type', 'status']),
+            models.Index(fields=['vehicle', 'document_type', 'status']),
+            models.Index(fields=['driver', 'document_type', 'status']),
+        ]

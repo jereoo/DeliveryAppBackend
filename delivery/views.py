@@ -7,22 +7,31 @@
 #     serializer_class = DeliverySerializer
 
 # Updated to include JWT authentication and permissions
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from django.http import Http404
-from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer
+from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer, LegalDocument
 from .driver_utils import get_driver_for_user, get_driver_vehicle
 from .vehicle_constants import MAX_VEHICLE_CAPACITY_KG, MAX_VEHICLE_CAPACITY_LB
 from .vehicle_utils import deactivate_vehicle, reactivate_vehicle, vehicle_has_history
 from .vehicle_update import serialize_vehicle_for_user, update_vehicle, user_can_read_vehicle
 from .auth_logging import log_registration_validation_failure
+from . import compliance_service
+from .compliance_permissions import (
+    CanManageDriverDocuments,
+    CanManageVehicleDocuments,
+    CanVerifyLegalDocument,
+    IsStaffOrDocumentOwner,
+)
 from .serializers import (DeliverySerializer, DriverSerializer, VehicleSerializer, DriverVehicleSerializer, 
                          DeliveryAssignmentSerializer, DriverWithVehicleSerializer, CustomerSerializer, 
                          CustomerRegistrationSerializer, DeliveryCreateSerializer, DriverRegistrationSerializer,
-                         DriverMeSerializer, DriverOwnedVehicleSerializer)
+                         DriverMeSerializer, DriverOwnedVehicleSerializer, LegalDocumentSerializer,
+                         LegalDocumentCreateSerializer, LegalDocumentVerifySerializer,
+                         LegalDocumentRejectSerializer, PresignedUploadSerializer)
 
 class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all()
@@ -305,6 +314,40 @@ class DriverViewSet(viewsets.ModelViewSet):
         log_registration_validation_failure(request, 'driver', serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        url_path='documents',
+        permission_classes=[IsAuthenticated, CanManageDriverDocuments],
+    )
+    def documents(self, request, pk=None):
+        driver = self.get_object()
+        if request.method == 'GET':
+            docs = compliance_service.list_documents_for_driver(driver)
+            return Response(LegalDocumentSerializer(docs, many=True).data)
+        serializer = LegalDocumentCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        document = compliance_service.create_document(
+            request.user,
+            driver=driver,
+            data=serializer.validated_data,
+        )
+        return Response(
+            LegalDocumentSerializer(document).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='me/compliance-status',
+    )
+    def me_compliance_status(self, request):
+        driver = get_driver_for_user(request.user)
+        if not driver:
+            return Response({'error': 'Driver profile not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(compliance_service.get_compliance_summary(driver))
+
 
 class VehicleViewSet(viewsets.ModelViewSet):
     queryset = Vehicle.objects.all()
@@ -408,6 +451,29 @@ class VehicleViewSet(viewsets.ModelViewSet):
             }
         })
 
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        url_path='documents',
+        permission_classes=[IsAuthenticated, CanManageVehicleDocuments],
+    )
+    def documents(self, request, pk=None):
+        vehicle = self.get_object()
+        if request.method == 'GET':
+            docs = compliance_service.list_documents_for_vehicle(vehicle)
+            return Response(LegalDocumentSerializer(docs, many=True).data)
+        serializer = LegalDocumentCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        document = compliance_service.create_document(
+            request.user,
+            vehicle=vehicle,
+            data=serializer.validated_data,
+        )
+        return Response(
+            LegalDocumentSerializer(document).data,
+            status=status.HTTP_201_CREATED,
+        )
+
 
 class DriverVehicleViewSet(viewsets.ModelViewSet):
     queryset = DriverVehicle.objects.all()
@@ -419,3 +485,63 @@ class DeliveryAssignmentViewSet(viewsets.ModelViewSet):
     queryset = DeliveryAssignment.objects.all()
     serializer_class = DeliveryAssignmentSerializer
     permission_classes = [IsAuthenticated]
+
+
+class LegalDocumentViewSet(
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
+    queryset = LegalDocument.objects.all()
+    serializer_class = LegalDocumentSerializer
+    permission_classes = [IsAuthenticated, IsStaffOrDocumentOwner]
+    http_method_names = ['get', 'patch', 'post', 'head', 'options']
+
+    def get_object(self):
+        document = compliance_service.get_document_or_404(self.kwargs['pk'])
+        self.check_object_permissions(self.request, document)
+        return document
+
+    def partial_update(self, request, *args, **kwargs):
+        document = self.get_object()
+        document = compliance_service.update_document(request.user, document, request.data)
+        return Response(LegalDocumentSerializer(document).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, CanVerifyLegalDocument])
+    def verify(self, request, pk=None):
+        document = self.get_object()
+        serializer = LegalDocumentVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        document = compliance_service.mark_verified(
+            request.user,
+            document.id,
+            notes=serializer.validated_data.get('notes'),
+        )
+        return Response(LegalDocumentSerializer(document).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, CanVerifyLegalDocument])
+    def reject(self, request, pk=None):
+        document = self.get_object()
+        serializer = LegalDocumentRejectSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        document = compliance_service.mark_rejected(
+            request.user,
+            document.id,
+            reason=serializer.validated_data['rejection_reason'],
+        )
+        return Response(LegalDocumentSerializer(document).data)
+
+    @action(detail=False, methods=['post'], url_path='presigned-upload')
+    def presigned_upload(self, request):
+        serializer = PresignedUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+        try:
+            result = compliance_service.get_presigned_upload_url(
+                request.user,
+                file_name=serializer.validated_data['file_name'],
+                content_type=serializer.validated_data['content_type'],
+            )
+        except DRFValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)

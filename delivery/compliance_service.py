@@ -1,0 +1,284 @@
+"""Legal document compliance — business logic SSOT (Phase 4A)."""
+
+from datetime import timedelta
+
+from django.db.models import Q
+from django.utils import timezone
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+
+from .compliance_constants import (
+    CoverageType,
+    DocumentStatus,
+    DocumentType,
+    DRIVER_DOCUMENT_TYPES,
+    VEHICLE_DOCUMENT_TYPES,
+)
+from .driver_utils import get_driver_for_user, get_driver_vehicle
+from .models import Driver, LegalDocument, Vehicle
+
+REQUIRED_COMPLIANCE_TYPES = (
+    DocumentType.DRIVER_LICENSE,
+    DocumentType.VEHICLE_REGISTRATION,
+    DocumentType.COMMERCIAL_INSURANCE,
+)
+
+
+def user_can_access_driver(user, driver: Driver) -> bool:
+    if user.is_staff:
+        return True
+    my_driver = get_driver_for_user(user)
+    return my_driver is not None and my_driver.id == driver.id
+
+
+def user_can_access_vehicle(user, vehicle: Vehicle) -> bool:
+    if user.is_staff:
+        return True
+    driver = get_driver_for_user(user)
+    if not driver:
+        return False
+    assigned = get_driver_vehicle(driver)
+    return assigned is not None and assigned.id == vehicle.id
+
+
+def user_can_access_document(user, document: LegalDocument) -> bool:
+    if user.is_staff:
+        return True
+    if document.driver_id:
+        return user_can_access_driver(user, document.driver)
+    if document.vehicle_id:
+        return user_can_access_vehicle(user, document.vehicle)
+    return False
+
+
+def assert_can_manage_driver_documents(user, driver: Driver):
+    if not user_can_access_driver(user, driver):
+        raise NotFound()
+
+
+def assert_can_manage_vehicle_documents(user, vehicle: Vehicle):
+    if not user_can_access_vehicle(user, vehicle):
+        raise NotFound()
+
+
+def get_document_or_404(document_id: int) -> LegalDocument:
+    try:
+        return LegalDocument.objects.get(pk=document_id)
+    except LegalDocument.DoesNotExist as exc:
+        raise NotFound() from exc
+
+
+def create_document(user, *, driver=None, vehicle=None, data: dict) -> LegalDocument:
+    doc_type = data.get('document_type')
+    if not doc_type:
+        raise ValidationError({'document_type': 'This field is required.'})
+
+    if doc_type in DRIVER_DOCUMENT_TYPES:
+        if not driver:
+            raise ValidationError({'driver': 'Driver is required for this document type.'})
+        assert_can_manage_driver_documents(user, driver)
+        subject_driver = driver
+        subject_vehicle = None
+    elif doc_type in VEHICLE_DOCUMENT_TYPES:
+        if not vehicle:
+            raise ValidationError({'vehicle': 'Vehicle is required for this document type.'})
+        assert_can_manage_vehicle_documents(user, vehicle)
+        subject_driver = None
+        subject_vehicle = vehicle
+    else:
+        raise ValidationError({'document_type': 'Invalid document type.'})
+
+    document = LegalDocument(
+        document_type=doc_type,
+        driver=subject_driver,
+        vehicle=subject_vehicle,
+        policy_number=data.get('policy_number'),
+        issuer=data.get('issuer'),
+        coverage_type=data.get('coverage_type'),
+        effective_date=data.get('effective_date'),
+        expiry_date=data.get('expiry_date'),
+        file_key=data.get('file_key'),
+        file_name=data.get('file_name'),
+        notes=data.get('notes'),
+        status=DocumentStatus.PENDING,
+    )
+    document.full_clean()
+    document.save()
+    return document
+
+
+def list_documents_for_driver(driver: Driver):
+    """Driver license docs plus documents for the driver's assigned vehicle."""
+    vehicle = get_driver_vehicle(driver)
+    query = Q(driver=driver)
+    if vehicle:
+        query |= Q(vehicle=vehicle)
+    return LegalDocument.objects.filter(query).order_by('-created_at')
+
+
+def list_documents_for_vehicle(vehicle: Vehicle):
+    return LegalDocument.objects.filter(vehicle=vehicle).order_by('-created_at')
+
+
+def _verified_doc_exists(docs, doc_type, *, driver_id=None, vehicle_id=None) -> bool:
+    for doc in docs:
+        if doc.document_type != doc_type or doc.status != DocumentStatus.VERIFIED:
+            continue
+        if driver_id is not None and doc.driver_id != driver_id:
+            continue
+        if vehicle_id is not None and doc.vehicle_id != vehicle_id:
+            continue
+        return True
+    return False
+
+
+def get_compliance_summary(driver: Driver) -> dict:
+    docs = list(list_documents_for_driver(driver))
+    today = timezone.now().date()
+    expiring_cutoff = today + timedelta(days=30)
+
+    summary = {
+        'pending': 0,
+        'verified': 0,
+        'rejected': 0,
+        'expired': 0,
+        'expiring_soon': 0,
+        'missing_types': [],
+        'is_fully_compliant': False,
+    }
+
+    for doc in docs:
+        key = doc.status.lower()
+        summary[key] = summary.get(key, 0) + 1
+        if doc.status == DocumentStatus.VERIFIED and doc.expiry_date:
+            if today <= doc.expiry_date <= expiring_cutoff:
+                summary['expiring_soon'] += 1
+
+    vehicle = get_driver_vehicle(driver)
+    for doc_type in REQUIRED_COMPLIANCE_TYPES:
+        if doc_type == DocumentType.DRIVER_LICENSE:
+            has = _verified_doc_exists(docs, doc_type, driver_id=driver.id)
+        elif vehicle:
+            has = _verified_doc_exists(docs, doc_type, vehicle_id=vehicle.id)
+        else:
+            has = False
+        if not has:
+            summary['missing_types'].append(doc_type)
+
+    summary['is_fully_compliant'] = (
+        len(summary['missing_types']) == 0 and summary.get('expired', 0) == 0
+    )
+    return summary
+
+
+def update_document(user, document: LegalDocument, data: dict) -> LegalDocument:
+    if not user_can_access_document(user, document):
+        raise NotFound()
+    if not user.is_staff and document.status != DocumentStatus.PENDING:
+        raise PermissionDenied('Only pending documents can be edited.')
+
+    editable = (
+        'policy_number', 'issuer', 'coverage_type', 'effective_date',
+        'expiry_date', 'file_key', 'file_name', 'notes',
+    )
+    for field in editable:
+        if field in data:
+            setattr(document, field, data[field])
+    document.full_clean()
+    document.save()
+    return document
+
+
+def mark_verified(staff_user, document_id: int, notes=None) -> LegalDocument:
+    if not staff_user.is_staff:
+        raise PermissionDenied('Only staff can verify documents.')
+
+    document = get_document_or_404(document_id)
+
+    if document.document_type == DocumentType.COMMERCIAL_INSURANCE:
+        if document.coverage_type != CoverageType.COMMERCIAL:
+            raise ValidationError({
+                'coverage_type': 'Commercial insurance must have COMMERCIAL coverage type.',
+            })
+        if not document.expiry_date:
+            raise ValidationError({
+                'expiry_date': 'Expiry date is required for commercial insurance.',
+            })
+        LegalDocument.objects.filter(
+            vehicle=document.vehicle,
+            document_type=DocumentType.COMMERCIAL_INSURANCE,
+            status=DocumentStatus.VERIFIED,
+        ).exclude(pk=document.pk).update(status=DocumentStatus.EXPIRED)
+
+    document.status = DocumentStatus.VERIFIED
+    document.verified_by = staff_user
+    document.verified_at = timezone.now()
+    document.rejection_reason = None
+    if notes is not None:
+        document.notes = notes
+    document.save()
+    return document
+
+
+def mark_rejected(staff_user, document_id: int, reason: str) -> LegalDocument:
+    if not staff_user.is_staff:
+        raise PermissionDenied('Only staff can reject documents.')
+
+    document = get_document_or_404(document_id)
+    if not reason:
+        raise ValidationError({'rejection_reason': 'Rejection reason is required.'})
+
+    document.status = DocumentStatus.REJECTED
+    document.rejection_reason = reason
+    document.verified_by = staff_user
+    document.verified_at = timezone.now()
+    document.save()
+    return document
+
+
+def is_vehicle_compliant(vehicle: Vehicle) -> dict:
+    """Phase 4A — informational only; full enforcement in Phase 4B."""
+    today = timezone.now().date()
+    has_registration = LegalDocument.objects.filter(
+        vehicle=vehicle,
+        document_type=DocumentType.VEHICLE_REGISTRATION,
+        status=DocumentStatus.VERIFIED,
+        expiry_date__gte=today,
+    ).exists()
+    has_insurance = LegalDocument.objects.filter(
+        vehicle=vehicle,
+        document_type=DocumentType.COMMERCIAL_INSURANCE,
+        status=DocumentStatus.VERIFIED,
+        coverage_type=CoverageType.COMMERCIAL,
+        expiry_date__gte=today,
+    ).exists()
+    return {
+        'compliant': has_registration and has_insurance,
+        'registration': has_registration,
+        'insurance': has_insurance,
+    }
+
+
+def is_driver_eligible_for_dispatch(driver: Driver) -> dict:
+    """Phase 4A stub — always eligible; informational summary only."""
+    return {
+        'eligible': True,
+        'summary': get_compliance_summary(driver),
+    }
+
+
+def get_presigned_upload_url(user, *, file_name: str, content_type: str) -> dict:
+    """Return presigned S3 upload URL when storage is configured (Phase 4A #4)."""
+    import os
+
+    if not user.is_authenticated:
+        raise PermissionDenied()
+
+    bucket = os.environ.get('AWS_STORAGE_BUCKET_NAME', '').strip()
+    if not bucket:
+        raise ValidationError({
+            'storage': 'File upload is not configured. Submit metadata only.',
+        })
+
+    raise ValidationError({
+        'storage': 'Presigned upload is not yet implemented. Submit metadata only.',
+    })
