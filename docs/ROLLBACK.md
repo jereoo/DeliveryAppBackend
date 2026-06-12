@@ -70,10 +70,10 @@ When a release spans **both** repos (e.g. new API field + mobile UI):
 2. Roll back **API** if the backend change breaks existing clients.
 3. If both changed in lockstep, roll back both to releases/commits from the same date.
 
-| Service | Last known-good reference (June 9, 2026) |
+| Service | Last known-good reference (June 3, 2026) |
 |---------|------------------------------------------|
-| Backend | GitHub `main` @ vehicle lifecycle commits |
-| Mobile | GitHub `main` @ vehicle lifecycle UI commits |
+| Backend | GitHub `main` @ `238b3ca` — Phase 4A compliance API + CI fix |
+| Mobile | GitHub `main` @ Phase 3 CI hardening commit |
 
 Update this table after each verified production release.
 
