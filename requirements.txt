@@ -13,3 +13,4 @@ tzdata==2025.2
 googlemaps==4.10.0
 usaddress==0.5.10
 pycountry==24.6.1
+responses==0.25.8
