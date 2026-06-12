@@ -105,7 +105,7 @@ class CustomerAPITests(APITestCase):
             'password': 'newpass123',
             'first_name': 'New',
             'last_name': 'Customer',
-            'phone_number': '555-5678',
+            'phone_number': '5555678901',
             'address_street': '456 New St',
             'address_city': 'Test City',
             'address_state': 'Test State',
@@ -116,7 +116,7 @@ class CustomerAPITests(APITestCase):
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(User.objects.filter(username='newcustomer').exists())
-        self.assertTrue(Customer.objects.filter(phone_number='555-5678').exists())
+        self.assertTrue(Customer.objects.filter(phone_number='5555678901').exists())
 
 
 class DriverAPITests(APITestCase):
@@ -191,7 +191,8 @@ class VehicleAPITests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(
             username='testuser',
-            password='testpass123'
+            password='testpass123',
+            is_staff=True,
         )
         self.vehicle = Vehicle.objects.create(
             license_plate='TEST123',
@@ -326,7 +327,8 @@ class APIErrorHandlingTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(
             username='testuser',
-            password='testpass123'
+            password='testpass123',
+            is_staff=True,
         )
         refresh = RefreshToken.for_user(self.user)
         self.access_token = refresh.access_token
@@ -367,7 +369,10 @@ class APIErrorHandlingTests(APITestCase):
         url = '/api/vehicles/'
         data = {
             'license_plate': 'DUPLICATE',
-            'model': 'Second Vehicle',
+            'make': 'Second',
+            'model': 'Vehicle',
+            'year': 2021,
+            'vin': '2DUPLICATE123456',
             'capacity': 2000,
             'capacity_unit': 'kg'
         }
@@ -633,7 +638,7 @@ class APIPaginationTests(APITestCase):
             )
             Customer.objects.create(
                 user=user,
-                phone_number=f'555-{1000+i}',
+                phone_number=f'555{1000 + i:07d}',
                 address_street=f'{i} Test St',
                 address_city='Test City',
                 address_state='Test State',

@@ -2,7 +2,6 @@
 Comprehensive tests for Address Validation System - API, Serializers, Services, Models
 Required for RED status project - must achieve ≥80% coverage
 """
-import pytest
 import json
 from unittest.mock import Mock, patch, MagicMock
 from django.test import TestCase

@@ -2,7 +2,6 @@
 Comprehensive unit tests for DeliveryApp models
 Target: 80% code coverage on core business logic
 """
-import pytest
 from django.test import TestCase
 from django.contrib.auth.models import User
 from django.utils import timezone
