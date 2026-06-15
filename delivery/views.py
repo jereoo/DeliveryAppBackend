@@ -541,6 +541,7 @@ class LegalDocumentViewSet(
                 request.user,
                 file_name=serializer.validated_data['file_name'],
                 content_type=serializer.validated_data['content_type'],
+                file_size=serializer.validated_data.get('file_size'),
             )
         except DRFValidationError as exc:
             return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)

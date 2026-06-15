@@ -13,6 +13,7 @@ from .compliance_constants import (
     DRIVER_DOCUMENT_TYPES,
     VEHICLE_DOCUMENT_TYPES,
 )
+from . import compliance_storage
 from .driver_utils import get_driver_for_user, get_driver_vehicle
 from .models import Driver, LegalDocument, Vehicle
 
@@ -87,6 +88,9 @@ def create_document(user, *, driver=None, vehicle=None, data: dict) -> LegalDocu
     else:
         raise ValidationError({'document_type': 'Invalid document type.'})
 
+    file_key = data.get('file_key')
+    compliance_storage.assert_file_key_owned_by_user(user.id, file_key)
+
     document = LegalDocument(
         document_type=doc_type,
         driver=subject_driver,
@@ -96,7 +100,7 @@ def create_document(user, *, driver=None, vehicle=None, data: dict) -> LegalDocu
         coverage_type=data.get('coverage_type'),
         effective_date=data.get('effective_date'),
         expiry_date=data.get('expiry_date'),
-        file_key=data.get('file_key'),
+        file_key=file_key,
         file_name=data.get('file_name'),
         notes=data.get('notes'),
         status=DocumentStatus.PENDING,
@@ -183,6 +187,8 @@ def update_document(user, document: LegalDocument, data: dict) -> LegalDocument:
     for field in editable:
         if field in data:
             setattr(document, field, data[field])
+    if 'file_key' in data:
+        compliance_storage.assert_file_key_owned_by_user(user.id, document.file_key)
     document.full_clean()
     document.save()
     return document
@@ -266,19 +272,57 @@ def is_driver_eligible_for_dispatch(driver: Driver) -> dict:
     }
 
 
-def get_presigned_upload_url(user, *, file_name: str, content_type: str) -> dict:
-    """Return presigned S3 upload URL when storage is configured (Phase 4A #4)."""
-    import os
-
+def get_presigned_upload_url(
+    user,
+    *,
+    file_name: str,
+    content_type: str,
+    file_size: int | None = None,
+) -> dict:
+    """Return presigned S3 PUT URL when storage is configured (Phase 4A #4.2)."""
     if not user.is_authenticated:
         raise PermissionDenied()
 
-    bucket = os.environ.get('AWS_STORAGE_BUCKET_NAME', '').strip()
-    if not bucket:
+    if not compliance_storage.is_storage_configured():
         raise ValidationError({
             'storage': 'File upload is not configured. Submit metadata only.',
         })
 
-    raise ValidationError({
-        'storage': 'Presigned upload is not yet implemented. Submit metadata only.',
-    })
+    safe_name = compliance_storage.validate_upload_request(
+        file_name=file_name,
+        content_type=content_type,
+        file_size=file_size,
+    )
+    normalized_type = content_type.split(';', 1)[0].strip().lower()
+    file_key = compliance_storage.build_staging_file_key(user.id, safe_name)
+    upload_url = compliance_storage.generate_presigned_put_url(
+        file_key=file_key,
+        content_type=normalized_type,
+    )
+    return {
+        'upload_url': upload_url,
+        'file_key': file_key,
+        'file_name': safe_name,
+        'content_type': normalized_type,
+        'expires_in': compliance_storage.PRESIGNED_UPLOAD_EXPIRES_SECONDS,
+        'max_size_bytes': compliance_storage.MAX_COMPLIANCE_FILE_BYTES,
+    }
+
+
+def get_presigned_download_url(user, document: LegalDocument) -> dict:
+    """Return presigned S3 GET URL for an attached compliance file (Phase 4A #4.2)."""
+    if not user_can_access_document(user, document):
+        raise NotFound()
+    if not document.file_key:
+        raise ValidationError({'file_key': 'No file attached to this document.'})
+    if not compliance_storage.is_storage_configured():
+        raise ValidationError({
+            'storage': 'File download is not configured.',
+        })
+
+    download_url = compliance_storage.generate_presigned_get_url(file_key=document.file_key)
+    return {
+        'download_url': download_url,
+        'file_name': document.file_name or 'document.pdf',
+        'expires_in': compliance_storage.PRESIGNED_DOWNLOAD_EXPIRES_SECONDS,
+    }

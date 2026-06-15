@@ -116,6 +116,25 @@ Aligned with `Customer.address_country` (`US`, `CA`).
 - **Env vars:** `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_STORAGE_BUCKET_NAME`, `AWS_S3_REGION_NAME`
 - Model fields: `file_key` (S3 object key), `file_name` (original filename).
 
+### Upload policy (Phase 4A #4)
+
+| Rule | Value |
+|------|--------|
+| Allowed MIME | `application/pdf` only |
+| Extension | `.pdf` (case-insensitive) |
+| Max size | 10 MB |
+| Staging key prefix | `compliance/staging/{user_id}/{upload_uuid}/{filename}.pdf` |
+| Presigned URL TTL | 15 minutes (upload and download) |
+
+**PDF-only rationale:** Standard format for insurance and registration scans; discourages casual editing. PDF does not guarantee authenticity — admin verification remains required. Word documents (DOCX) are not accepted.
+
+**Driver upload copy:**
+
+> Upload a **PDF** from your insurer or DMV. Word documents are not accepted. I confirm this policy covers **commercial delivery use**.
+
+Final key layout after document create (optional future move):  
+`compliance/drivers/{driver_id}/{document_type}/{id}/…` or `compliance/vehicles/{vehicle_id}/…`
+
 ---
 
 ## Retention

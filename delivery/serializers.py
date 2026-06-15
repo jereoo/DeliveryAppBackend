@@ -769,3 +769,4 @@ class LegalDocumentRejectSerializer(serializers.Serializer):
 class PresignedUploadSerializer(serializers.Serializer):
     file_name = serializers.CharField(max_length=255)
     content_type = serializers.CharField(max_length=128)
+    file_size = serializers.IntegerField(required=False, min_value=1)

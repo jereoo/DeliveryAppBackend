@@ -17,12 +17,15 @@ from delivery.compliance_constants import CoverageType, DocumentStatus, Document
 from delivery.compliance_service import (
     create_document,
     get_compliance_summary,
+    get_presigned_download_url,
+    get_presigned_upload_url,
     list_documents_for_driver,
     mark_rejected,
     mark_verified,
     update_document,
     user_can_access_vehicle,
 )
+from delivery import compliance_storage
 from delivery.models import Driver, DriverVehicle, LegalDocument, Vehicle
 
 
@@ -239,6 +242,106 @@ class ComplianceServiceTests(TestCase):
         with self.assertRaises(PermissionDenied):
             update_document(self.driver_user, doc, {'issuer': 'Changed'})
 
+    def test_create_document_rejects_foreign_file_key(self):
+        with self.assertRaises(Exception):
+            create_document(
+                self.driver_user,
+                driver=self.driver,
+                data={
+                    'document_type': DocumentType.DRIVER_LICENSE,
+                    'file_key': 'compliance/staging/99999/abc/policy.pdf',
+                    'file_name': 'policy.pdf',
+                },
+            )
+
+
+class ComplianceStorageTests(TestCase):
+    def test_sanitize_pdf_filename(self):
+        self.assertEqual(
+            compliance_storage.sanitize_pdf_filename('My Policy.PDF'),
+            'My_Policy.pdf',
+        )
+
+    def test_reject_non_pdf_extension(self):
+        with self.assertRaises(Exception):
+            compliance_storage.sanitize_pdf_filename('policy.docx')
+
+    def test_assert_file_key_owned_by_user(self):
+        key = compliance_storage.build_staging_file_key(7, 'license.pdf')
+        compliance_storage.assert_file_key_owned_by_user(7, key)
+        with self.assertRaises(Exception):
+            compliance_storage.assert_file_key_owned_by_user(8, key)
+
+
+class CompliancePresignedUrlTests(TestCase):
+    AWS_ENV = {
+        'AWS_STORAGE_BUCKET_NAME': 'test-compliance-bucket',
+        'AWS_ACCESS_KEY_ID': 'test-key',
+        'AWS_SECRET_ACCESS_KEY': 'test-secret',
+        'AWS_S3_REGION_NAME': 'us-east-1',
+    }
+
+    def setUp(self):
+        self.user = User.objects.create_user(username='upload_user', password='pass')
+
+    @patch.dict(os.environ, AWS_ENV, clear=False)
+    @patch('delivery.compliance_storage._get_s3_client')
+    def test_get_presigned_upload_url_pdf(self, mock_get_client):
+        mock_get_client.return_value.generate_presigned_url.return_value = 'https://s3.example/upload'
+        result = get_presigned_upload_url(
+            self.user,
+            file_name='commercial-policy.pdf',
+            content_type='application/pdf',
+            file_size=1024,
+        )
+        self.assertEqual(result['upload_url'], 'https://s3.example/upload')
+        self.assertTrue(result['file_key'].startswith(f'compliance/staging/{self.user.id}/'))
+        self.assertEqual(result['file_name'], 'commercial-policy.pdf')
+        self.assertEqual(result['content_type'], 'application/pdf')
+
+    @patch.dict(os.environ, AWS_ENV, clear=False)
+    def test_get_presigned_upload_url_rejects_docx(self):
+        with self.assertRaises(Exception):
+            get_presigned_upload_url(
+                self.user,
+                file_name='policy.docx',
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            )
+
+    @patch.dict(os.environ, AWS_ENV, clear=False)
+    def test_get_presigned_upload_url_rejects_oversize(self):
+        with self.assertRaises(Exception):
+            get_presigned_upload_url(
+                self.user,
+                file_name='big.pdf',
+                content_type='application/pdf',
+                file_size=compliance_storage.MAX_COMPLIANCE_FILE_BYTES + 1,
+            )
+
+    @patch.dict(os.environ, AWS_ENV, clear=False)
+    @patch('delivery.compliance_storage._get_s3_client')
+    def test_get_presigned_download_url(self, mock_get_client):
+        mock_get_client.return_value.generate_presigned_url.return_value = 'https://s3.example/download'
+        staff = User.objects.create_user(username='staff_dl', password='pass', is_staff=True)
+        driver_user = User.objects.create_user(username='driver_dl', password='pass')
+        driver = Driver.objects.create(
+            user=driver_user,
+            phone_number='555-0300',
+            license_number='DL-DL-001',
+        )
+        doc = create_document(
+            driver_user,
+            driver=driver,
+            data={
+                'document_type': DocumentType.DRIVER_LICENSE,
+                'file_key': compliance_storage.build_staging_file_key(driver_user.id, 'license.pdf'),
+                'file_name': 'license.pdf',
+            },
+        )
+        result = get_presigned_download_url(staff, doc)
+        self.assertEqual(result['download_url'], 'https://s3.example/download')
+        self.assertEqual(result['file_name'], 'license.pdf')
+
 
 class ComplianceAPITests(APITestCase):
     def setUp(self):
@@ -352,7 +455,7 @@ class ComplianceAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @patch.dict(os.environ, {'AWS_STORAGE_BUCKET_NAME': 'test-bucket'}, clear=False)
-    def test_presigned_upload_not_implemented_yet(self):
+    def test_presigned_upload_missing_credentials(self):
         response = self.driver_client.post(
             '/api/documents/presigned-upload/',
             {'file_name': 'insurance.pdf', 'content_type': 'application/pdf'},
@@ -360,3 +463,40 @@ class ComplianceAPITests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('storage', response.data)
+
+    @patch.dict(
+        os.environ,
+        {
+            'AWS_STORAGE_BUCKET_NAME': 'test-bucket',
+            'AWS_ACCESS_KEY_ID': 'test-key',
+            'AWS_SECRET_ACCESS_KEY': 'test-secret',
+            'AWS_S3_REGION_NAME': 'us-east-1',
+        },
+        clear=False,
+    )
+    @patch('delivery.compliance_storage._get_s3_client')
+    def test_presigned_upload_pdf_success(self, mock_get_client):
+        mock_get_client.return_value.generate_presigned_url.return_value = 'https://s3.example/upload'
+        response = self.driver_client.post(
+            '/api/documents/presigned-upload/',
+            {
+                'file_name': 'insurance.pdf',
+                'content_type': 'application/pdf',
+                'file_size': 2048,
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['upload_url'], 'https://s3.example/upload')
+        self.assertIn('file_key', response.data)
+
+    def test_presigned_upload_rejects_docx(self):
+        response = self.driver_client.post(
+            '/api/documents/presigned-upload/',
+            {
+                'file_name': 'policy.docx',
+                'content_type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
