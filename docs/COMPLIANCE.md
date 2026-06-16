@@ -163,9 +163,14 @@ Before marking **VERIFIED**:
 
 ## API (Phase 4A implementation)
 
+| Method | Path | Who |
+|--------|------|-----|
+| POST | `/api/documents/presigned-upload/` | Authenticated — presigned S3 PUT |
+| GET | `/api/documents/{id}/download/` | Admin; document owner — presigned S3 GET |
+
 See `DeliveryAppMobile/docs/PHASE_4A_LEGAL_COMPLIANCE.md` §7.
 
-Business logic SSOT: `delivery/compliance_service.py` (Phase 4A #2).
+Business logic SSOT: `delivery/compliance_service.py` (Phase 4A #2); storage helpers: `delivery/compliance_storage.py` (#4.2–4.3).
 
 ---
 

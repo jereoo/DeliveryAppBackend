@@ -500,3 +500,70 @@ class ComplianceAPITests(APITestCase):
             format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch.dict(
+        os.environ,
+        {
+            'AWS_STORAGE_BUCKET_NAME': 'test-bucket',
+            'AWS_ACCESS_KEY_ID': 'test-key',
+            'AWS_SECRET_ACCESS_KEY': 'test-secret',
+            'AWS_S3_REGION_NAME': 'us-east-1',
+        },
+        clear=False,
+    )
+    @patch('delivery.compliance_storage._get_s3_client')
+    def test_document_download_staff(self, mock_get_client):
+        mock_get_client.return_value.generate_presigned_url.return_value = 'https://s3.example/download'
+        file_key = compliance_storage.build_staging_file_key(self.driver_user.id, 'license.pdf')
+        create_resp = self.driver_client.post(
+            f'/api/drivers/{self.driver.id}/documents/',
+            {
+                'document_type': DocumentType.DRIVER_LICENSE,
+                'file_key': file_key,
+                'file_name': 'license.pdf',
+            },
+            format='json',
+        )
+        doc_id = create_resp.data['id']
+        response = self.staff_client.get(f'/api/documents/{doc_id}/download/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['download_url'], 'https://s3.example/download')
+        self.assertEqual(response.data['file_name'], 'license.pdf')
+
+    @patch.dict(
+        os.environ,
+        {
+            'AWS_STORAGE_BUCKET_NAME': 'test-bucket',
+            'AWS_ACCESS_KEY_ID': 'test-key',
+            'AWS_SECRET_ACCESS_KEY': 'test-secret',
+            'AWS_S3_REGION_NAME': 'us-east-1',
+        },
+        clear=False,
+    )
+    @patch('delivery.compliance_storage._get_s3_client')
+    def test_document_download_owner(self, mock_get_client):
+        mock_get_client.return_value.generate_presigned_url.return_value = 'https://s3.example/download'
+        file_key = compliance_storage.build_staging_file_key(self.driver_user.id, 'license.pdf')
+        create_resp = self.driver_client.post(
+            f'/api/drivers/{self.driver.id}/documents/',
+            {
+                'document_type': DocumentType.DRIVER_LICENSE,
+                'file_key': file_key,
+                'file_name': 'license.pdf',
+            },
+            format='json',
+        )
+        doc_id = create_resp.data['id']
+        response = self.driver_client.get(f'/api/documents/{doc_id}/download/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_document_download_without_file(self):
+        create_resp = self.driver_client.post(
+            f'/api/drivers/{self.driver.id}/documents/',
+            {'document_type': DocumentType.DRIVER_LICENSE},
+            format='json',
+        )
+        doc_id = create_resp.data['id']
+        response = self.driver_client.get(f'/api/documents/{doc_id}/download/')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('file_key', response.data)

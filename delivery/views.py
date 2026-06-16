@@ -546,3 +546,13 @@ class LegalDocumentViewSet(
         except DRFValidationError as exc:
             return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
         return Response(result)
+
+    @action(detail=True, methods=['get'], url_path='download')
+    def download(self, request, pk=None):
+        document = self.get_object()
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+        try:
+            result = compliance_service.get_presigned_download_url(request.user, document)
+        except DRFValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
