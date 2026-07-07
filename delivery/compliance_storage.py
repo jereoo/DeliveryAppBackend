@@ -134,3 +134,37 @@ def generate_presigned_get_url(*, file_key: str) -> str:
         },
         ExpiresIn=PRESIGNED_DOWNLOAD_EXPIRES_SECONDS,
     )
+
+
+def upload_staging_object(
+    *,
+    user_id: int,
+    file_name: str,
+    content_type: str,
+    file_body: bytes,
+) -> dict:
+    """Upload PDF bytes to staging prefix (browser-safe — no S3 CORS required)."""
+    if not is_storage_configured():
+        raise ValidationError({
+            'storage': 'File upload is not configured. Submit metadata only.',
+        })
+    normalized_type = content_type.split(';', 1)[0].strip().lower()
+    safe_name = validate_upload_request(
+        file_name=file_name,
+        content_type=normalized_type,
+        file_size=len(file_body),
+    )
+    file_key = build_staging_file_key(user_id, safe_name)
+    config = get_storage_config()
+    client = _get_s3_client()
+    client.put_object(
+        Bucket=config['bucket'],
+        Key=file_key,
+        Body=file_body,
+        ContentType=normalized_type,
+    )
+    return {
+        'file_key': file_key,
+        'file_name': safe_name,
+        'content_type': normalized_type,
+    }

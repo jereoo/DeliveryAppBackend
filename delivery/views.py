@@ -9,6 +9,7 @@
 # Updated to include JWT authentication and permissions
 from rest_framework import viewsets, status, mixins
 from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
@@ -546,6 +547,28 @@ class LegalDocumentViewSet(
         except DRFValidationError as exc:
             return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
         return Response(result)
+
+    @action(
+        detail=False,
+        methods=['post'],
+        url_path='upload',
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload(self, request):
+        uploaded = request.FILES.get('file')
+        if not uploaded:
+            return Response({'file': 'PDF file is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+        try:
+            result = compliance_service.upload_compliance_file(
+                request.user,
+                file_name=uploaded.name,
+                content_type=uploaded.content_type or 'application/pdf',
+                file_body=uploaded.read(),
+            )
+        except DRFValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['get'], url_path='download')
     def download(self, request, pk=None):

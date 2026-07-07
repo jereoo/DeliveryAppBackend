@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework import status
@@ -567,3 +568,26 @@ class ComplianceAPITests(APITestCase):
         response = self.driver_client.get(f'/api/documents/{doc_id}/download/')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('file_key', response.data)
+
+    @patch.dict(
+        os.environ,
+        {
+            'AWS_STORAGE_BUCKET_NAME': 'test-bucket',
+            'AWS_ACCESS_KEY_ID': 'test-key',
+            'AWS_SECRET_ACCESS_KEY': 'test-secret',
+            'AWS_S3_REGION_NAME': 'us-east-1',
+        },
+        clear=False,
+    )
+    @patch('delivery.compliance_storage._get_s3_client')
+    def test_document_upload_pdf(self, mock_get_client):
+        mock_get_client.return_value.put_object.return_value = {}
+        pdf_bytes = b'%PDF-1.4\n% test license\n'
+        response = self.driver_client.post(
+            '/api/documents/upload/',
+            {'file': SimpleUploadedFile('license.pdf', pdf_bytes, content_type='application/pdf')},
+            format='multipart',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn('file_key', response.data)
+        self.assertEqual(response.data['file_name'], 'license.pdf')

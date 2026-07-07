@@ -138,6 +138,10 @@ USE_TZ = True
 
 # Static files
 STATIC_URL = 'static/'
+
+# Compliance PDF uploads (Phase 4A) — max 10 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 

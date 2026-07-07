@@ -309,6 +309,24 @@ def get_presigned_upload_url(
     }
 
 
+def upload_compliance_file(
+    user,
+    *,
+    file_name: str,
+    content_type: str,
+    file_body: bytes,
+) -> dict:
+    """Upload PDF via Django (avoids browser S3 CORS). Phase 4A #4.5."""
+    if not user.is_authenticated:
+        raise PermissionDenied()
+    return compliance_storage.upload_staging_object(
+        user_id=user.id,
+        file_name=file_name,
+        content_type=content_type,
+        file_body=file_body,
+    )
+
+
 def get_presigned_download_url(user, document: LegalDocument) -> dict:
     """Return presigned S3 GET URL for an attached compliance file (Phase 4A #4.2)."""
     if not user_can_access_document(user, document):
