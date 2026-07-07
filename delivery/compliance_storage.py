@@ -13,6 +13,21 @@ PRESIGNED_UPLOAD_EXPIRES_SECONDS = 900
 PRESIGNED_DOWNLOAD_EXPIRES_SECONDS = 900
 
 _SAFE_FILENAME_RE = re.compile(r'[^A-Za-z0-9._-]+')
+_AWS_REGION_RE = re.compile(r'([a-z]{2}-(?:gov-)?[a-z]+-\d+)')
+
+
+def normalize_aws_region(raw: str | None) -> str:
+    """Return a boto3-compatible region code (e.g. ca-central-1).
+
+    Accepts console labels like 'Canada (Central) ca-central-1'.
+    """
+    value = (raw or '').strip()
+    if not value:
+        return 'us-east-1'
+    match = _AWS_REGION_RE.search(value.lower())
+    if match:
+        return match.group(1)
+    return value
 
 
 def is_storage_configured() -> bool:
@@ -25,7 +40,7 @@ def is_storage_configured() -> bool:
 def get_storage_config() -> dict:
     return {
         'bucket': os.environ.get('AWS_STORAGE_BUCKET_NAME', '').strip(),
-        'region': os.environ.get('AWS_S3_REGION_NAME', 'us-east-1').strip() or 'us-east-1',
+        'region': normalize_aws_region(os.environ.get('AWS_S3_REGION_NAME')),
     }
 
 

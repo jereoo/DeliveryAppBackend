@@ -49,6 +49,7 @@ python manage.py test tests.test_s3_integration -v 2
 |-------|-----|
 | `Set AWS_*` | Add Heroku Config Vars or local env |
 | `404 / NoSuchBucket` | Wrong bucket name or region (`AWS_S3_REGION_NAME`) |
+| `InvalidRegionError` | Use region code only, e.g. `ca-central-1` — not `Canada (Central) ca-central-1` |
 | `403 AccessDenied` on put/get | IAM policy must allow `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` on `arn:aws:s3:::BUCKET/compliance/*` |
 | Presigned PUT HTTP 403 | Bucket policy blocking uploads; check Block Public Access (presigned is fine with private bucket) |
 

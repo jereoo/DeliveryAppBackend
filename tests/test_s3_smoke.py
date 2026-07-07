@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
+from delivery import compliance_storage
 from delivery.s3_smoke import all_passed, format_smoke_report, run_s3_smoke_tests
 
 
@@ -28,3 +29,11 @@ class S3SmokeHarnessTests(SimpleTestCase):
         self.assertIn('[PASS] env_configured', report)
         self.assertIn('[FAIL] head_bucket', report)
         self.assertIn('1/2 passed', report)
+
+    def test_normalize_aws_region_from_console_label(self):
+        self.assertEqual(
+            compliance_storage.normalize_aws_region('Canada (Central) ca-central-1'),
+            'ca-central-1',
+        )
+        self.assertEqual(compliance_storage.normalize_aws_region('us-east-1'), 'us-east-1')
+        self.assertEqual(compliance_storage.normalize_aws_region(''), 'us-east-1')
