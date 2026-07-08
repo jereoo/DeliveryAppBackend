@@ -165,7 +165,8 @@ Before marking **VERIFIED**:
 
 | Method | Path | Who |
 |--------|------|-----|
-| POST | `/api/documents/presigned-upload/` | Authenticated — presigned S3 PUT |
+| POST | `/api/documents/presigned-upload/` | Authenticated — presigned S3 PUT (native clients) |
+| POST | `/api/documents/upload/` | Authenticated — multipart PDF upload via Heroku → S3 (web) |
 | GET | `/api/documents/{id}/download/` | Admin; document owner — presigned S3 GET |
 
 See `DeliveryAppMobile/docs/PHASE_4A_LEGAL_COMPLIANCE.md` §7.
