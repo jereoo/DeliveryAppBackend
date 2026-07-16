@@ -124,12 +124,24 @@ def list_documents_for_vehicle(vehicle: Vehicle):
 
 
 def _verified_doc_exists(docs, doc_type, *, driver_id=None, vehicle_id=None) -> bool:
+    today = timezone.now().date()
     for doc in docs:
         if doc.document_type != doc_type or doc.status != DocumentStatus.VERIFIED:
             continue
+        if doc.expiry_date and doc.expiry_date < today:
+            continue
+        if doc.document_type == DocumentType.COMMERCIAL_INSURANCE:
+            if doc.coverage_type != CoverageType.COMMERCIAL:
+                continue
         if driver_id is not None and doc.driver_id != driver_id:
             continue
         if vehicle_id is not None and doc.vehicle_id != vehicle_id:
+            continue
+        if doc.document_type in (
+            DocumentType.DRIVER_LICENSE,
+            DocumentType.VEHICLE_REGISTRATION,
+            DocumentType.COMMERCIAL_INSURANCE,
+        ) and not doc.expiry_date:
             continue
         return True
     return False
@@ -194,26 +206,53 @@ def update_document(user, document: LegalDocument, data: dict) -> LegalDocument:
     return document
 
 
+def _require_expiry_for_verify(document: LegalDocument):
+    """Phase 4B — verified docs must have a future-facing expiry date."""
+    if document.document_type in (
+        DocumentType.COMMERCIAL_INSURANCE,
+        DocumentType.VEHICLE_REGISTRATION,
+        DocumentType.DRIVER_LICENSE,
+    ) and not document.expiry_date:
+        raise ValidationError({
+            'expiry_date': f'Expiry date is required for {document.document_type}.',
+        })
+
+
+def _expire_superseded_verified(document: LegalDocument):
+    """Mark other verified docs of the same type/subject as EXPIRED when a new one is verified."""
+    if document.document_type not in (
+        DocumentType.COMMERCIAL_INSURANCE,
+        DocumentType.VEHICLE_REGISTRATION,
+        DocumentType.DRIVER_LICENSE,
+    ):
+        return
+    qs = LegalDocument.objects.filter(
+        document_type=document.document_type,
+        status=DocumentStatus.VERIFIED,
+    ).exclude(pk=document.pk)
+    if document.vehicle_id:
+        qs = qs.filter(vehicle_id=document.vehicle_id)
+    elif document.driver_id:
+        qs = qs.filter(driver_id=document.driver_id)
+    else:
+        return
+    qs.update(status=DocumentStatus.EXPIRED)
+
+
 def mark_verified(staff_user, document_id: int, notes=None) -> LegalDocument:
     if not staff_user.is_staff:
         raise PermissionDenied('Only staff can verify documents.')
 
     document = get_document_or_404(document_id)
+    _require_expiry_for_verify(document)
 
     if document.document_type == DocumentType.COMMERCIAL_INSURANCE:
         if document.coverage_type != CoverageType.COMMERCIAL:
             raise ValidationError({
                 'coverage_type': 'Commercial insurance must have COMMERCIAL coverage type.',
             })
-        if not document.expiry_date:
-            raise ValidationError({
-                'expiry_date': 'Expiry date is required for commercial insurance.',
-            })
-        LegalDocument.objects.filter(
-            vehicle=document.vehicle,
-            document_type=DocumentType.COMMERCIAL_INSURANCE,
-            status=DocumentStatus.VERIFIED,
-        ).exclude(pk=document.pk).update(status=DocumentStatus.EXPIRED)
+
+    _expire_superseded_verified(document)
 
     document.status = DocumentStatus.VERIFIED
     document.verified_by = staff_user
@@ -241,26 +280,79 @@ def mark_rejected(staff_user, document_id: int, reason: str) -> LegalDocument:
     return document
 
 
-def is_vehicle_compliant(vehicle: Vehicle) -> dict:
-    """Phase 4A — informational only; full enforcement in Phase 4B."""
+def _vehicle_has_current_verified(vehicle: Vehicle, doc_type: str, *, today=None) -> bool:
+    today = today or timezone.now().date()
+    qs = LegalDocument.objects.filter(
+        vehicle=vehicle,
+        document_type=doc_type,
+        status=DocumentStatus.VERIFIED,
+        expiry_date__gte=today,
+    )
+    if doc_type == DocumentType.COMMERCIAL_INSURANCE:
+        qs = qs.filter(coverage_type=CoverageType.COMMERCIAL)
+    return qs.exists()
+
+
+def _vehicle_has_expired_doc(vehicle: Vehicle, doc_type: str, *, today=None) -> bool:
+    today = today or timezone.now().date()
+    return LegalDocument.objects.filter(
+        vehicle=vehicle,
+        document_type=doc_type,
+    ).filter(
+        Q(status=DocumentStatus.EXPIRED)
+        | Q(status=DocumentStatus.VERIFIED, expiry_date__lt=today),
+    ).exists()
+
+
+def get_vehicle_reactivation_blockers(vehicle: Vehicle) -> list[str]:
+    """Return machine-readable codes blocking vehicle reactivation (Phase 4B)."""
     today = timezone.now().date()
-    has_registration = LegalDocument.objects.filter(
-        vehicle=vehicle,
-        document_type=DocumentType.VEHICLE_REGISTRATION,
+    blockers: list[str] = []
+    checks = (
+        (DocumentType.VEHICLE_REGISTRATION, 'vehicle_registration_missing', 'vehicle_registration_expired'),
+        (DocumentType.COMMERCIAL_INSURANCE, 'commercial_insurance_missing', 'commercial_insurance_expired'),
+    )
+    for doc_type, missing_code, expired_code in checks:
+        if _vehicle_has_current_verified(vehicle, doc_type, today=today):
+            continue
+        if _vehicle_has_expired_doc(vehicle, doc_type, today=today):
+            blockers.append(expired_code)
+        else:
+            blockers.append(missing_code)
+    return blockers
+
+
+def assert_vehicle_may_reactivate(vehicle: Vehicle):
+    blockers = get_vehicle_reactivation_blockers(vehicle)
+    if blockers:
+        raise ValidationError({'compliance': blockers})
+
+
+def mark_expired_documents(as_of_date=None) -> int:
+    """Mark VERIFIED documents past expiry as EXPIRED. Returns count updated."""
+    as_of = as_of_date or timezone.now().date()
+    return LegalDocument.objects.filter(
         status=DocumentStatus.VERIFIED,
-        expiry_date__gte=today,
-    ).exists()
-    has_insurance = LegalDocument.objects.filter(
-        vehicle=vehicle,
-        document_type=DocumentType.COMMERCIAL_INSURANCE,
-        status=DocumentStatus.VERIFIED,
-        coverage_type=CoverageType.COMMERCIAL,
-        expiry_date__gte=today,
-    ).exists()
+        expiry_date__lt=as_of,
+    ).update(status=DocumentStatus.EXPIRED)
+
+
+def is_vehicle_compliant(vehicle: Vehicle) -> dict:
+    """Current verified registration + commercial insurance (Phase 4B)."""
+    today = timezone.now().date()
+    has_registration = _vehicle_has_current_verified(
+        vehicle, DocumentType.VEHICLE_REGISTRATION, today=today,
+    )
+    has_insurance = _vehicle_has_current_verified(
+        vehicle, DocumentType.COMMERCIAL_INSURANCE, today=today,
+    )
+    blockers = get_vehicle_reactivation_blockers(vehicle)
     return {
         'compliant': has_registration and has_insurance,
         'registration': has_registration,
         'insurance': has_insurance,
+        'blockers': blockers,
+        'may_reactivate': len(blockers) == 0,
     }
 
 

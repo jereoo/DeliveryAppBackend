@@ -3,6 +3,7 @@ import logging
 
 from django.utils import timezone
 
+from .compliance_service import assert_vehicle_may_reactivate
 from .models import DeliveryAssignment, DriverVehicle, Vehicle
 
 logger = logging.getLogger(__name__)
@@ -36,15 +37,14 @@ def reactivate_vehicle(vehicle: Vehicle) -> Vehicle:
     """
     Mark vehicle active again and reopen the latest driver assignment if it was closed.
 
-    Phase 4: enforce insurance/registration reverification before allowing this.
+    Phase 4B: requires verified, non-expired registration and commercial insurance.
     """
+    assert_vehicle_may_reactivate(vehicle)
+
     if not vehicle.active:
         vehicle.active = True
         vehicle.save(update_fields=['active'])
-        logger.info(
-            'Vehicle %s reactivated; compliance reverification not yet enforced (Phase 4)',
-            vehicle.id,
-        )
+        logger.info('Vehicle %s reactivated after compliance check passed', vehicle.id)
 
     latest_assignment = (
         DriverVehicle.objects.filter(vehicle=vehicle)

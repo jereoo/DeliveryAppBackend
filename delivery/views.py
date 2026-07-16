@@ -413,6 +413,15 @@ class VehicleViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @action(detail=True, methods=['get'], url_path='compliance-status')
+    def compliance_status(self, request, pk=None):
+        """Vehicle registration + insurance compliance for reactivation (Phase 4B)."""
+        vehicle = self.get_object()
+        if not user_can_read_vehicle(request.user, vehicle):
+            raise Http404()
+        from .compliance_service import is_vehicle_compliant
+        return Response(is_vehicle_compliant(vehicle))
+
     @action(detail=True, methods=['post'], url_path='reactivate')
     def reactivate(self, request, pk=None):
         self._require_staff(request)
@@ -420,10 +429,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
         reactivate_vehicle(vehicle)
         return Response(
             {
-                'detail': (
-                    'Vehicle reactivated. '
-                    'Insurance/registration reverification will be required in a future release.'
-                ),
+                'detail': 'Vehicle reactivated.',
                 'id': vehicle.id,
                 'active': True,
             },

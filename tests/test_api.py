@@ -583,6 +583,9 @@ class VehicleLifecycleAPITests(APITestCase):
     def test_staff_reactivate_vehicle(self):
         from django.utils import timezone
         from delivery.models import DriverVehicle
+        from tests.test_compliance import seed_verified_vehicle_compliance
+
+        seed_verified_vehicle_compliance(self.staff, self.vehicle)
 
         self.vehicle.active = False
         self.vehicle.save(update_fields=['active'])
@@ -597,6 +600,15 @@ class VehicleLifecycleAPITests(APITestCase):
         self.assertTrue(self.vehicle.active)
         assignment.refresh_from_db()
         self.assertIsNone(assignment.assigned_to)
+
+    def test_staff_reactivate_vehicle_blocked_without_compliance(self):
+        self.vehicle.active = False
+        self.vehicle.save(update_fields=['active'])
+        response = self.staff_client.post(f'/api/vehicles/{self.vehicle.id}/reactivate/')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('compliance', response.data)
+        self.vehicle.refresh_from_db()
+        self.assertFalse(self.vehicle.active)
 
     def test_staff_delete_with_history_soft_deactivates(self):
         response = self.staff_client.delete(f'/api/vehicles/{self.vehicle.id}/')

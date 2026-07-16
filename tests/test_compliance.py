@@ -16,11 +16,15 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from delivery.compliance_constants import CoverageType, DocumentStatus, DocumentType
 from delivery.compliance_service import (
+    assert_vehicle_may_reactivate,
     create_document,
     get_compliance_summary,
     get_presigned_download_url,
     get_presigned_upload_url,
+    get_vehicle_reactivation_blockers,
+    is_vehicle_compliant,
     list_documents_for_driver,
+    mark_expired_documents,
     mark_rejected,
     mark_verified,
     update_document,
@@ -236,7 +240,10 @@ class ComplianceServiceTests(TestCase):
         doc = create_document(
             self.staff,
             driver=self.driver,
-            data={'document_type': DocumentType.DRIVER_LICENSE},
+            data={
+                'document_type': DocumentType.DRIVER_LICENSE,
+                'expiry_date': date.today() + timedelta(days=365),
+            },
         )
         mark_verified(self.staff, doc.id)
         doc.refresh_from_db()
@@ -591,3 +598,139 @@ class ComplianceAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn('file_key', response.data)
         self.assertEqual(response.data['file_name'], 'license.pdf')
+
+
+def seed_verified_vehicle_compliance(staff, vehicle, *, days=60):
+    """Helper: verified registration + commercial insurance for reactivation tests."""
+    for doc_type in (DocumentType.VEHICLE_REGISTRATION, DocumentType.COMMERCIAL_INSURANCE):
+        data = {
+            'document_type': doc_type,
+            'expiry_date': date.today() + timedelta(days=days),
+        }
+        if doc_type == DocumentType.COMMERCIAL_INSURANCE:
+            data.update(
+                coverage_type=CoverageType.COMMERCIAL,
+                policy_number='POL-TEST',
+                issuer='Acme Insurance',
+            )
+        doc = create_document(staff, vehicle=vehicle, data=data)
+        mark_verified(staff, doc.id)
+
+
+class Phase4BComplianceTests(TestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(username='staff4b', password='pass', is_staff=True)
+        self.vehicle = Vehicle.objects.create(
+            license_plate='4B001',
+            make='Ford',
+            model='Transit',
+            year=2022,
+            vin='1FT4BTEST00000001',
+            capacity=1500,
+            capacity_unit='kg',
+            active=False,
+        )
+
+    def test_mark_expired_documents_updates_verified_past_expiry(self):
+        doc = create_document(
+            self.staff,
+            vehicle=self.vehicle,
+            data={
+                'document_type': DocumentType.VEHICLE_REGISTRATION,
+                'expiry_date': date.today() - timedelta(days=1),
+            },
+        )
+        mark_verified(self.staff, doc.id)
+        count = mark_expired_documents(as_of_date=date.today())
+        self.assertEqual(count, 1)
+        doc.refresh_from_db()
+        self.assertEqual(doc.status, DocumentStatus.EXPIRED)
+
+    def test_reactivation_blockers_when_docs_missing(self):
+        blockers = get_vehicle_reactivation_blockers(self.vehicle)
+        self.assertIn('vehicle_registration_missing', blockers)
+        self.assertIn('commercial_insurance_missing', blockers)
+
+    def test_reactivation_blockers_when_docs_expired(self):
+        reg = create_document(
+            self.staff,
+            vehicle=self.vehicle,
+            data={
+                'document_type': DocumentType.VEHICLE_REGISTRATION,
+                'expiry_date': date.today() - timedelta(days=5),
+            },
+        )
+        mark_verified(self.staff, reg.id)
+        mark_expired_documents()
+        ins = create_document(
+            self.staff,
+            vehicle=self.vehicle,
+            data={
+                'document_type': DocumentType.COMMERCIAL_INSURANCE,
+                'coverage_type': CoverageType.COMMERCIAL,
+                'policy_number': 'P1',
+                'issuer': 'Acme',
+                'expiry_date': date.today() - timedelta(days=2),
+            },
+        )
+        mark_verified(self.staff, ins.id)
+        mark_expired_documents()
+        blockers = get_vehicle_reactivation_blockers(self.vehicle)
+        self.assertIn('vehicle_registration_expired', blockers)
+        self.assertIn('commercial_insurance_expired', blockers)
+
+    def test_assert_vehicle_may_reactivate_raises_compliance_error(self):
+        with self.assertRaises(Exception) as ctx:
+            assert_vehicle_may_reactivate(self.vehicle)
+        self.assertIn('compliance', getattr(ctx.exception, 'detail', ctx.exception.args[0]))
+
+    def test_is_vehicle_compliant_when_docs_current(self):
+        seed_verified_vehicle_compliance(self.staff, self.vehicle)
+        status = is_vehicle_compliant(self.vehicle)
+        self.assertTrue(status['compliant'])
+        self.assertTrue(status['may_reactivate'])
+        self.assertEqual(status['blockers'], [])
+
+    def test_mark_verified_requires_expiry_for_registration(self):
+        doc = create_document(
+            self.staff,
+            vehicle=self.vehicle,
+            data={'document_type': DocumentType.VEHICLE_REGISTRATION},
+        )
+        with self.assertRaises(Exception):
+            mark_verified(self.staff, doc.id)
+
+
+class Phase4BComplianceAPITests(APITestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(username='staff4bapi', password='pass', is_staff=True)
+        self.staff_client = auth_client(self.staff)
+        self.vehicle = Vehicle.objects.create(
+            license_plate='4BAPI1',
+            make='Ford',
+            model='Transit',
+            year=2022,
+            vin='1FT4BAPITEST0001',
+            capacity=1500,
+            capacity_unit='kg',
+            active=False,
+        )
+
+    def test_vehicle_compliance_status_endpoint(self):
+        seed_verified_vehicle_compliance(self.staff, self.vehicle)
+        response = self.staff_client.get(f'/api/vehicles/{self.vehicle.id}/compliance-status/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['compliant'])
+        self.assertTrue(response.data['may_reactivate'])
+
+    def test_reactivate_blocked_without_compliance(self):
+        response = self.staff_client.post(f'/api/vehicles/{self.vehicle.id}/reactivate/')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('compliance', response.data)
+
+    def test_reactivate_succeeds_with_compliance(self):
+        seed_verified_vehicle_compliance(self.staff, self.vehicle)
+        response = self.staff_client.post(f'/api/vehicles/{self.vehicle.id}/reactivate/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.vehicle.refresh_from_db()
+        self.assertTrue(self.vehicle.active)
