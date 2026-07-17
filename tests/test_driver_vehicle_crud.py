@@ -382,6 +382,10 @@ class DriverOwnedVehicleCRUDTests(APITestCase, DriverVehicleCRUDFixtures):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_staff_reactivate_after_driver_deactivates(self):
+        from tests.test_compliance import seed_verified_vehicle_compliance
+
+        seed_verified_vehicle_compliance(self.staff, self.vehicle)
+
         self.client.patch('/api/drivers/me/vehicle/', {'active': False}, format='json')
         self.vehicle.refresh_from_db()
         self.assertFalse(self.vehicle.active)
