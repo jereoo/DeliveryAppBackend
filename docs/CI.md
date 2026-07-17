@@ -1,7 +1,8 @@
 # CI/CD — DeliveryAppBackend
 
-**Last updated:** June 3, 2026  
+**Last updated:** July 16, 2026  
 **Canonical workflow:** `.github/workflows/phase1-ci.yml`  
+**Deploy verify:** `.github/workflows/deploy-verify.yml`  
 **Production:** Heroku `truck-buddy` (auto-deploy from `main`)
 
 ---
@@ -44,6 +45,34 @@ python manage.py test --verbosity=1 --no-input
 | File | Reason |
 |------|--------|
 | `ci-cd.yml` | Legacy monorepo layout (`DeliveryAppBackend/` subfolder); replaced by `phase1-ci.yml` |
+
+---
+
+## Deploy verification (after CI on `main`)
+
+Workflow **`Verify Heroku Deploy`** runs automatically after **Phase 1 Backend CI** succeeds on a push to `main`. It:
+
+1. Polls Heroku builds until commit `github.sha` is deployed (20 min timeout)
+2. Smoke-tests `GET /api/health/` → 200
+3. Sets GitHub commit status **`deploy/heroku-production`** (success or failure)
+4. **Fails the workflow** if auto-deploy did not happen — visible in GitHub Actions and email (if you watch the repo)
+5. Optionally posts to **`DEPLOY_NOTIFY_WEBHOOK_URL`** (Slack/Discord-compatible JSON)
+
+### Required GitHub secret
+
+| Secret | How to get it |
+|--------|----------------|
+| `HEROKU_API_KEY` | [Heroku Account → Applications → Create authorization](https://dashboard.heroku.com/account/applications/authorizations) |
+
+### Optional GitHub secret
+
+| Secret | Purpose |
+|--------|---------|
+| `DEPLOY_NOTIFY_WEBHOOK_URL` | Slack/Discord incoming webhook for success + failure messages |
+
+### GitHub email notifications
+
+Profile → **Notifications** → enable **Actions** (workflow failures) for email alerts when deploy verify fails.
 
 ---
 
