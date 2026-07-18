@@ -324,7 +324,7 @@ class DriverViewSet(viewsets.ModelViewSet):
     def documents(self, request, pk=None):
         driver = self.get_object()
         if request.method == 'GET':
-            docs = compliance_service.list_documents_for_driver(driver)
+            docs = compliance_service.list_driver_owned_documents(driver)
             return Response(LegalDocumentSerializer(docs, many=True).data)
         serializer = LegalDocumentCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -519,10 +519,14 @@ class LegalDocumentViewSet(
         document = self.get_object()
         serializer = LegalDocumentVerifySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+        if validated.get('expiry_date') is not None:
+            document.expiry_date = validated['expiry_date']
+            document.save(update_fields=['expiry_date'])
         document = compliance_service.mark_verified(
             request.user,
             document.id,
-            notes=serializer.validated_data.get('notes'),
+            notes=validated.get('notes'),
         )
         return Response(LegalDocumentSerializer(document).data)
 

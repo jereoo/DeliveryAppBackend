@@ -1,0 +1,43 @@
+{
+  "notice": "Fictional test data only. Do not use in production as real compliance proof.",
+  "driver_profile": {
+    "name": "Alex Carter",
+    "license_number": "TEST-BC-000123",
+    "license_class": "5"
+  },
+  "vehicle_profile": {
+    "make": "Ford",
+    "model": "F-150",
+    "year": 2022,
+    "colour": "Blue",
+    "license_plate": "TEST123",
+    "vin": "TESTVIN1234567890",
+    "gvwr_kg": 3300
+  },
+  "documents": [
+    {
+      "file": "driver_license_sample.pdf",
+      "document_type": "DRIVER_LICENSE",
+      "suggested_expiry_date": "2028-12-31",
+      "suggested_effective_date": "2024-01-01",
+      "issuer_or_carrier": "Test Motor Registry",
+      "policy_or_registration_number": "TEST-BC-000123"
+    },
+    {
+      "file": "vehicle_registration_sample.pdf",
+      "document_type": "VEHICLE_REGISTRATION",
+      "suggested_expiry_date": "2027-12-31",
+      "suggested_effective_date": "2025-01-01",
+      "issuer_or_carrier": "Test Motor Registry",
+      "policy_or_registration_number": "REG-TEST-000456"
+    },
+    {
+      "file": "commercial_insurance_sample.pdf",
+      "document_type": "COMMERCIAL_INSURANCE",
+      "suggested_expiry_date": "2027-12-31",
+      "suggested_effective_date": "2025-01-01",
+      "issuer_or_carrier": "Test Insurance Co.",
+      "policy_or_registration_number": "POL-TEST-78910"
+    }
+  ]
+}

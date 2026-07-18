@@ -24,6 +24,7 @@ from delivery.compliance_service import (
     get_vehicle_reactivation_blockers,
     is_vehicle_compliant,
     list_documents_for_driver,
+    list_driver_owned_documents,
     mark_expired_documents,
     mark_rejected,
     mark_verified,
@@ -218,7 +219,7 @@ class ComplianceServiceTests(TestCase):
         self.assertIn(DocumentType.COMMERCIAL_INSURANCE, summary['missing_types'])
         self.assertFalse(summary['is_fully_compliant'])
 
-    def test_list_documents_includes_vehicle_docs(self):
+    def test_list_documents_for_driver_includes_vehicle_docs(self):
         create_document(
             self.staff,
             vehicle=self.vehicle,
@@ -226,6 +227,21 @@ class ComplianceServiceTests(TestCase):
         )
         docs = list_documents_for_driver(self.driver)
         self.assertEqual(docs.count(), 1)
+
+    def test_list_driver_owned_documents_excludes_vehicle_docs(self):
+        create_document(
+            self.staff,
+            driver=self.driver,
+            data={'document_type': DocumentType.DRIVER_LICENSE, 'issuer': 'ICBC'},
+        )
+        create_document(
+            self.staff,
+            vehicle=self.vehicle,
+            data={'document_type': DocumentType.VEHICLE_REGISTRATION, 'issuer': 'DMV'},
+        )
+        docs = list_driver_owned_documents(self.driver)
+        self.assertEqual(docs.count(), 1)
+        self.assertEqual(docs.first().document_type, DocumentType.DRIVER_LICENSE)
 
     def test_driver_can_update_pending_document(self):
         doc = create_document(
@@ -387,6 +403,35 @@ class ComplianceAPITests(APITestCase):
         response = self.driver_client.get(f'/api/drivers/{self.driver.id}/documents/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
+
+    def test_driver_documents_list_excludes_vehicle_docs(self):
+        self.driver_client.post(
+            f'/api/drivers/{self.driver.id}/documents/',
+            {'document_type': DocumentType.DRIVER_LICENSE, 'issuer': 'ICBC'},
+            format='json',
+        )
+        self.driver_client.post(
+            f'/api/vehicles/{self.vehicle.id}/documents/',
+            {
+                'document_type': DocumentType.COMMERCIAL_INSURANCE,
+                'issuer': 'Test Insurance Co.',
+                'policy_number': 'POL-TEST-1',
+                'coverage_type': CoverageType.COMMERCIAL,
+                'expiry_date': str(date.today() + timedelta(days=365)),
+            },
+            format='json',
+        )
+        response = self.driver_client.get(f'/api/drivers/{self.driver.id}/documents/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['document_type'], DocumentType.DRIVER_LICENSE)
+
+        vehicle_response = self.driver_client.get(f'/api/vehicles/{self.vehicle.id}/documents/')
+        self.assertEqual(len(vehicle_response.data), 1)
+        self.assertEqual(
+            vehicle_response.data[0]['document_type'],
+            DocumentType.COMMERCIAL_INSURANCE,
+        )
 
     def test_driver_posts_vehicle_document(self):
         response = self.driver_client.post(

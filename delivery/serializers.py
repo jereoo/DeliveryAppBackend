@@ -760,6 +760,7 @@ class LegalDocumentCreateSerializer(serializers.ModelSerializer):
 
 class LegalDocumentVerifySerializer(serializers.Serializer):
     notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    expiry_date = serializers.DateField(required=False, allow_null=True)
 
 
 class LegalDocumentRejectSerializer(serializers.Serializer):

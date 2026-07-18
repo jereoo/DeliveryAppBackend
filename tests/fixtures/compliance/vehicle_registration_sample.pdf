@@ -1,0 +1,62 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 612 >>
+stream
+BT
+/F1 22 Tf
+36 740 Td
+(SAMPLE VEHICLE REGISTRATION ? TEST ONLY ? NOT VALID) Tj
+0 -28 Td
+/F1 12 Tf
+(TruckBuddy / DeliveryApp ? Compliance test fixture) Tj
+0 -16 Td
+(This is fictional data for software testing only.) Tj
+0 -16 Td
+() Tj
+0 -16 Td
+(Registered owner: Alex Carter) Tj
+0 -16 Td
+(Plate: TEST123) Tj
+0 -16 Td
+(VIN: TESTVIN1234567890) Tj
+0 -16 Td
+(Make / model: Ford F-150 \(2022\)) Tj
+0 -16 Td
+(Colour: Blue) Tj
+0 -16 Td
+(Registration number: REG-TEST-000456) Tj
+0 -16 Td
+(Effective date: 2025-01-01) Tj
+0 -16 Td
+(Expiry date: 2027-12-31) Tj
+0 -16 Td
+(Status: PENDING admin review \(test\)) Tj
+0 -16 Td
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000904 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+974
+%%EOF

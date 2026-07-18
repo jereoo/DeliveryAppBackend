@@ -110,8 +110,13 @@ def create_document(user, *, driver=None, vehicle=None, data: dict) -> LegalDocu
     return document
 
 
+def list_driver_owned_documents(driver: Driver):
+    """Documents stored on the driver record (driver license)."""
+    return LegalDocument.objects.filter(driver=driver).order_by('-created_at')
+
+
 def list_documents_for_driver(driver: Driver):
-    """Driver license docs plus documents for the driver's assigned vehicle."""
+    """All compliance docs for summary checks: driver license + assigned vehicle docs."""
     vehicle = get_driver_vehicle(driver)
     query = Q(driver=driver)
     if vehicle:
