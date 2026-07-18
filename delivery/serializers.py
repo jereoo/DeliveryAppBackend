@@ -16,6 +16,7 @@ from .registration_messages import (
     USERNAME_TAKEN,
     VIN_TAKEN,
 )
+from .driver_license_validation import list_license_regions, validate_driver_license_number
 
 class CustomerSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username')
@@ -613,11 +614,15 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
         default='kg',
         help_text="Capacity unit (kg or lb)"
     )
+    license_issuing_region = serializers.CharField(
+        write_only=True,
+        help_text='Province/state code, e.g. CA-BC or US-CA',
+    )
     
     class Meta:
         model = Driver
         fields = ['username', 'email', 'password', 'first_name', 'last_name', 'full_name',
-                 'phone_number', 'license_number', 'vehicle_license_plate', 'vehicle_make',
+                 'phone_number', 'license_number', 'license_issuing_region', 'vehicle_license_plate', 'vehicle_make',
                  'vehicle_model', 'vehicle_year', 'vehicle_vin', 'vehicle_capacity', 'vehicle_capacity_unit']
         extra_kwargs = {
             'license_number': {'validators': []},
@@ -663,7 +668,23 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
                         f'(max {MAX_VEHICLE_CAPACITY_KG} kg / {MAX_VEHICLE_CAPACITY_LB} lb).'
                     ),
                 })
-        
+
+        region = data.get('license_issuing_region')
+        license_number = data.get('license_number')
+        if not region:
+            raise serializers.ValidationError({
+                'license_issuing_region': 'Select the province or state that issued your driver license.',
+            })
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        try:
+            normalized = validate_driver_license_number(region, license_number or '')
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+        if Driver.objects.filter(license_number=normalized).exists():
+            raise serializers.ValidationError({'license_number': LICENSE_NUMBER_TAKEN})
+        data['license_number'] = normalized
+
         return data
     
     def validate_username(self, value):
@@ -677,9 +698,15 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
         return value
     
     def validate_license_number(self, value):
-        """Ensure license number is unique"""
-        if Driver.objects.filter(license_number=value).exists():
-            raise serializers.ValidationError(LICENSE_NUMBER_TAKEN)
+        """Basic presence check; format/uniqueness handled in validate()."""
+        if not (value or '').strip():
+            raise serializers.ValidationError('Driver license number is required.')
+        return value
+
+    def validate_license_issuing_region(self, value):
+        codes = {region['code'] for region in list_license_regions()}
+        if value not in codes:
+            raise serializers.ValidationError('Select a valid province or state.')
         return value
     
     def validate_vehicle_license_plate(self, value):
@@ -727,10 +754,11 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
         # CIO DIRECTIVE: Create driver with user link and populate first_name/last_name
         validated_data['first_name'] = user_data['first_name'] 
         validated_data['last_name'] = user_data['last_name']
-        # Remove deprecated name field assignment
+        license_issuing_region = validated_data.pop('license_issuing_region')
         driver = Driver.objects.create(
             user=user,
             **validated_data,
+            license_issuing_region=license_issuing_region,
             active=False,
             approval_status=DriverApprovalStatus.PENDING,
         )

@@ -27,7 +27,8 @@ class CIODirectiveFixTests(TestCase):
             'first_name': 'Wanda',
             'last_name': 'Dollar',
             'phone_number': '5551234567',
-            'license_number': 'DL123TEST',
+            'license_issuing_region': 'CA-BC',
+            'license_number': '5555555',
             'vehicle_license_plate': 'ABC123',
             'vehicle_make': 'Ford',
             'vehicle_model': 'Transit',
@@ -55,7 +56,7 @@ class CIODirectiveFixTests(TestCase):
         self.assertEqual(driver.first_name, 'Wanda')
         self.assertEqual(driver.last_name, 'Dollar')
         self.assertEqual(driver.phone_number, '5551234567')
-        self.assertEqual(driver.license_number, 'DL123TEST')
+        self.assertEqual(driver.license_number, '5555555')
         
         print(f"SUCCESS: Driver '{driver.first_name} {driver.last_name}' created correctly")
         print(f"   - User ID: {user.id}")

@@ -74,7 +74,8 @@ class DriverRegistrationValidationTests(APITestCase):
             first_name='Taken',
             last_name='Driver',
             phone_number='5553333333',
-            license_number='DL-TAKEN-001',
+            license_number='1111111',
+            license_issuing_region='CA-BC',
         )
         Vehicle.objects.create(
             license_plate='PLATE001',
@@ -92,7 +93,8 @@ class DriverRegistrationValidationTests(APITestCase):
             'first_name': 'New',
             'last_name': 'Driver',
             'phone_number': '5554444444',
-            'license_number': 'DL-NEW-001',
+            'license_issuing_region': 'CA-BC',
+            'license_number': '2222222',
             'vehicle_license_plate': 'NEWPLATE1',
             'vehicle_make': 'Ford',
             'vehicle_model': 'Transit',
@@ -115,10 +117,16 @@ class DriverRegistrationValidationTests(APITestCase):
         self.assertEqual(response.data['email'][0], EMAIL_TAKEN)
 
     def test_duplicate_license_number(self):
-        payload = {**self.base_payload, 'license_number': 'DL-TAKEN-001'}
+        payload = {**self.base_payload, 'license_number': '1111111'}
         response = self.client.post('/api/drivers/register/', payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['license_number'][0], LICENSE_NUMBER_TAKEN)
+
+    def test_invalid_license_format(self):
+        payload = {**self.base_payload, 'license_number': '12345'}
+        response = self.client.post('/api/drivers/register/', payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('license_number', response.data)
 
     def test_duplicate_license_plate(self):
         payload = {**self.base_payload, 'vehicle_license_plate': 'PLATE001'}

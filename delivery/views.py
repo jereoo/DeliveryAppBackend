@@ -20,6 +20,7 @@ from .vehicle_constants import MAX_VEHICLE_CAPACITY_KG, MAX_VEHICLE_CAPACITY_LB
 from .vehicle_utils import deactivate_vehicle, reactivate_vehicle, vehicle_has_history
 from .vehicle_update import serialize_vehicle_for_user, update_vehicle, user_can_read_vehicle
 from .auth_logging import log_registration_validation_failure
+from .driver_license_validation import list_license_regions
 from . import compliance_service
 from . import driver_approval_service
 from .compliance_permissions import (
@@ -291,7 +292,13 @@ class DriverViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_201_CREATED)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
+    @action(detail=False, methods=['get'], permission_classes=[])
+    def license_regions(self, request):
+        """List supported driver license issuing regions and format hints."""
+        country = request.query_params.get('country')
+        return Response(list_license_regions(country=country))
+
     @action(detail=False, methods=['post'], permission_classes=[])
     def register(self, request):
         """Driver self-registration endpoint"""

@@ -418,7 +418,8 @@ class DriverRegistrationWithVehicleTests(APITestCase, DriverVehicleCRUDFixtures)
             'first_name': 'Reg',
             'last_name': 'Driver',
             'phone_number': '5554443333',
-            'license_number': 'DL-REG-001',
+            'license_issuing_region': 'CA-BC',
+            'license_number': '3333333',
             'vehicle_license_plate': 'REG001',
             'vehicle_make': 'Toyota',
             'vehicle_model': 'Hiace',
@@ -430,9 +431,9 @@ class DriverRegistrationWithVehicleTests(APITestCase, DriverVehicleCRUDFixtures)
         client = APIClient()
         response = client.post('/api/drivers/register/', payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(Driver.objects.filter(license_number='DL-REG-001').exists())
+        self.assertTrue(Driver.objects.filter(license_number='3333333').exists())
         self.assertTrue(Vehicle.objects.filter(license_plate='REG001').exists())
-        driver = Driver.objects.get(license_number='DL-REG-001')
+        driver = Driver.objects.get(license_number='3333333')
         self.assertTrue(DriverVehicle.objects.filter(driver=driver).exists())
         self.assertFalse(driver.active)
         self.assertEqual(driver.approval_status, 'PENDING')
@@ -455,7 +456,8 @@ class DriverRegistrationWithVehicleTests(APITestCase, DriverVehicleCRUDFixtures)
             'first_name': 'Dup',
             'last_name': 'Driver',
             'phone_number': '5554443334',
-            'license_number': 'DL-REG-002',
+            'license_issuing_region': 'CA-BC',
+            'license_number': '4444444',
             'vehicle_license_plate': 'DUPREG1',
             'vehicle_make': 'Toyota',
             'vehicle_model': 'Hiace',

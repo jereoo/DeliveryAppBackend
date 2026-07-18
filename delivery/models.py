@@ -176,6 +176,12 @@ class Driver(models.Model):
     
     phone_number = models.CharField(max_length=20)
     license_number = models.CharField(max_length=50, unique=True)
+    license_issuing_region = models.CharField(
+        max_length=8,
+        blank=True,
+        default='',
+        help_text='Province/state code, e.g. CA-BC or US-CA',
+    )
     active = models.BooleanField(default=True)
     approval_status = models.CharField(
         max_length=16,
