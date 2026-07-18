@@ -2,7 +2,7 @@
 from rest_framework import serializers
 from django.db import models
 from django.contrib.auth.models import User
-from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer, LegalDocument
+from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer, LegalDocument, DriverApprovalStatus
 from .compliance_constants import DocumentType
 from .vehicle_constants import (
     MAX_VEHICLE_CAPACITY_KG,
@@ -226,8 +226,12 @@ class DriverSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Driver
-        fields = ['id', 'user', 'first_name', 'last_name', 'phone_number', 'license_number', 'active', 
-                 'vehicle_id', 'assigned_from', 'current_vehicle', 'current_vehicle_plate', 'current_vehicle_model']
+        fields = [
+            'id', 'user', 'first_name', 'last_name', 'phone_number', 'license_number', 'active',
+            'approval_status', 'approval_rejection_reason', 'approved_at',
+            'vehicle_id', 'assigned_from', 'current_vehicle', 'current_vehicle_plate', 'current_vehicle_model',
+        ]
+        read_only_fields = ['approval_status', 'approval_rejection_reason', 'approved_at']
         # CIO DIRECTIVE: Removed deprecated 'name' field - use first_name + last_name from User model
     
     def get_current_vehicle(self, obj):
@@ -429,10 +433,15 @@ class DriverMeSerializer(serializers.ModelSerializer):
     """Self-service driver profile (no vehicle reassignment or active flag changes)."""
 
     active = serializers.BooleanField(read_only=True)
+    approval_status = serializers.CharField(read_only=True)
+    approval_rejection_reason = serializers.CharField(read_only=True)
 
     class Meta:
         model = Driver
-        fields = ['id', 'first_name', 'last_name', 'phone_number', 'license_number', 'active']
+        fields = [
+            'id', 'first_name', 'last_name', 'phone_number', 'license_number', 'active',
+            'approval_status', 'approval_rejection_reason',
+        ]
 
     def validate_phone_number(self, value):
         import re
@@ -573,8 +582,6 @@ class DriverWithVehicleSerializer(serializers.ModelSerializer):
         
         # Create driver
         driver = Driver.objects.create(**validated_data)
-        
-        # Assign vehicle
         vehicle = Vehicle.objects.get(id=vehicle_id)
         DriverVehicle.objects.create(
             driver=driver,
@@ -721,7 +728,12 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
         validated_data['first_name'] = user_data['first_name'] 
         validated_data['last_name'] = user_data['last_name']
         # Remove deprecated name field assignment
-        driver = Driver.objects.create(user=user, **validated_data, active=True)
+        driver = Driver.objects.create(
+            user=user,
+            **validated_data,
+            active=False,
+            approval_status=DriverApprovalStatus.PENDING,
+        )
         # Create vehicle
         vehicle = Vehicle.objects.create(**vehicle_data)
         # Create driver-vehicle assignment
@@ -770,6 +782,10 @@ class LegalDocumentVerifySerializer(serializers.Serializer):
 
 
 class LegalDocumentRejectSerializer(serializers.Serializer):
+    rejection_reason = serializers.CharField(required=True, allow_blank=False)
+
+
+class DriverRejectSerializer(serializers.Serializer):
     rejection_reason = serializers.CharField(required=True, allow_blank=False)
 
 

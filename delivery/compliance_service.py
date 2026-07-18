@@ -15,7 +15,7 @@ from .compliance_constants import (
 )
 from . import compliance_storage
 from .driver_utils import get_driver_for_user, get_driver_vehicle
-from .models import Driver, LegalDocument, Vehicle
+from .models import Driver, DriverApprovalStatus, LegalDocument, Vehicle
 
 REQUIRED_COMPLIANCE_TYPES = (
     DocumentType.DRIVER_LICENSE,
@@ -382,7 +382,11 @@ def is_driver_eligible_for_dispatch(driver: Driver) -> dict:
 def get_dispatch_eligibility_blockers(driver: Driver) -> list[str]:
     """Machine-readable codes blocking dispatch assignment (Phase 4C)."""
     blockers: list[str] = []
-    if not driver.active:
+    if driver.approval_status == DriverApprovalStatus.PENDING:
+        blockers.append('driver_pending_approval')
+    elif driver.approval_status == DriverApprovalStatus.REJECTED:
+        blockers.append('driver_registration_rejected')
+    elif not driver.active:
         blockers.append('driver_inactive')
 
     vehicle = get_driver_vehicle(driver)

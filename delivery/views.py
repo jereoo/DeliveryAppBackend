@@ -21,6 +21,7 @@ from .vehicle_utils import deactivate_vehicle, reactivate_vehicle, vehicle_has_h
 from .vehicle_update import serialize_vehicle_for_user, update_vehicle, user_can_read_vehicle
 from .auth_logging import log_registration_validation_failure
 from . import compliance_service
+from . import driver_approval_service
 from .compliance_permissions import (
     CanManageDriverDocuments,
     CanManageVehicleDocuments,
@@ -32,7 +33,7 @@ from .serializers import (DeliverySerializer, DriverSerializer, VehicleSerialize
                          CustomerRegistrationSerializer, DeliveryCreateSerializer, DriverRegistrationSerializer,
                          DriverMeSerializer, DriverOwnedVehicleSerializer, LegalDocumentSerializer,
                          LegalDocumentCreateSerializer, LegalDocumentVerifySerializer,
-                         LegalDocumentRejectSerializer, PresignedUploadSerializer)
+                         LegalDocumentRejectSerializer, DriverRejectSerializer, PresignedUploadSerializer)
 
 class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all()
@@ -301,9 +302,13 @@ class DriverViewSet(viewsets.ModelViewSet):
                 
                 # Return success with driver info (no sensitive data)
                 return Response({
-                    'message': f'Driver {driver.first_name} {driver.last_name} registered successfully',
+                    'message': (
+                        f'Driver {driver.first_name} {driver.last_name} registered successfully. '
+                        'Your account is pending admin approval before you can be assigned deliveries.'
+                    ),
                     'driver_id': driver.id,
-                    'name': f'{driver.first_name} {driver.last_name}'
+                    'name': f'{driver.first_name} {driver.last_name}',
+                    'approval_status': driver.approval_status,
                 }, status=status.HTTP_201_CREATED)
                 
             except Exception as e:
@@ -364,6 +369,38 @@ class DriverViewSet(viewsets.ModelViewSet):
             if not my_driver or my_driver.id != driver.id:
                 return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
         return Response(compliance_service.is_driver_eligible_for_dispatch(driver))
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='approve',
+    )
+    def approve(self, request, pk=None):
+        """Staff approves a self-registered driver (Phase 4 — registration gate)."""
+        if not request.user.is_staff:
+            raise PermissionDenied('Only staff may approve drivers.')
+        driver = self.get_object()
+        driver = driver_approval_service.approve_driver(request.user, driver)
+        return Response(DriverSerializer(driver).data)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='reject',
+    )
+    def reject(self, request, pk=None):
+        """Staff rejects a pending driver registration."""
+        if not request.user.is_staff:
+            raise PermissionDenied('Only staff may reject drivers.')
+        driver = self.get_object()
+        serializer = DriverRejectSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        driver = driver_approval_service.reject_driver(
+            request.user,
+            driver,
+            reason=serializer.validated_data['rejection_reason'],
+        )
+        return Response(DriverSerializer(driver).data)
 
 
 class VehicleViewSet(viewsets.ModelViewSet):

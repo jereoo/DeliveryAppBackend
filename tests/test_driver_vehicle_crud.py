@@ -434,6 +434,9 @@ class DriverRegistrationWithVehicleTests(APITestCase, DriverVehicleCRUDFixtures)
         self.assertTrue(Vehicle.objects.filter(license_plate='REG001').exists())
         driver = Driver.objects.get(license_number='DL-REG-001')
         self.assertTrue(DriverVehicle.objects.filter(driver=driver).exists())
+        self.assertFalse(driver.active)
+        self.assertEqual(driver.approval_status, 'PENDING')
+        self.assertEqual(response.data.get('approval_status'), 'PENDING')
 
     def test_register_rejects_duplicate_license_plate(self):
         Vehicle.objects.create(

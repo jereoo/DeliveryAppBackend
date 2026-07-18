@@ -12,6 +12,13 @@ from .compliance_constants import (
     VEHICLE_DOCUMENT_TYPES,
 )
 
+
+class DriverApprovalStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending approval'
+    APPROVED = 'APPROVED', 'Approved'
+    REJECTED = 'REJECTED', 'Rejected'
+
+
 class Customer(models.Model):
     COUNTRY_CHOICES = [
         ('CA', 'Canada'),
@@ -170,6 +177,20 @@ class Driver(models.Model):
     phone_number = models.CharField(max_length=20)
     license_number = models.CharField(max_length=50, unique=True)
     active = models.BooleanField(default=True)
+    approval_status = models.CharField(
+        max_length=16,
+        choices=DriverApprovalStatus.choices,
+        default=DriverApprovalStatus.APPROVED,
+    )
+    approval_rejection_reason = models.TextField(blank=True, null=True)
+    approved_at = models.DateTimeField(blank=True, null=True)
+    approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_drivers',
+    )
 
     def clean(self):
         """CIO DIRECTIVE: Validate that every driver has a User account"""

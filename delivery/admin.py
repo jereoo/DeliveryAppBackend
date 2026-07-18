@@ -61,8 +61,8 @@ class DeliveryAdmin(admin.ModelAdmin):
 @admin.register(Driver)
 class DriverAdmin(admin.ModelAdmin):
     # CIO DIRECTIVE: Use User model fields instead of deprecated name field
-    list_display = ('full_name_display', 'user_username', 'phone_number', 'license_number', 'active')
-    list_filter = ('active',)
+    list_display = ('full_name_display', 'user_username', 'phone_number', 'license_number', 'approval_status', 'active')
+    list_filter = ('approval_status', 'active')
     search_fields = ('user__username', 'user__first_name', 'user__last_name', 'user__email', 'license_number', 'phone_number')
     
     def full_name_display(self, obj):
