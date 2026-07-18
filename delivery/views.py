@@ -349,6 +349,22 @@ class DriverViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Driver profile not found'}, status=status.HTTP_404_NOT_FOUND)
         return Response(compliance_service.get_compliance_summary(driver))
 
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='dispatch-eligibility',
+    )
+    def dispatch_eligibility(self, request, pk=None):
+        """Whether driver may receive a delivery assignment (Phase 4C)."""
+        driver = self.get_object()
+        if not compliance_service.user_can_access_driver(request.user, driver):
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        if not request.user.is_staff:
+            my_driver = get_driver_for_user(request.user)
+            if not my_driver or my_driver.id != driver.id:
+                return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(compliance_service.is_driver_eligible_for_dispatch(driver))
+
 
 class VehicleViewSet(viewsets.ModelViewSet):
     queryset = Vehicle.objects.all()
@@ -492,6 +508,23 @@ class DeliveryAssignmentViewSet(viewsets.ModelViewSet):
     queryset = DeliveryAssignment.objects.all()
     serializer_class = DeliveryAssignmentSerializer
     permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        if not self.request.user.is_staff:
+            raise PermissionDenied('Only staff may create delivery assignments.')
+        serializer.save()
+
+    def perform_update(self, serializer):
+        if not self.request.user.is_staff:
+            raise PermissionDenied('Only staff may update delivery assignments.')
+        if 'driver' in serializer.validated_data:
+            compliance_service.assert_driver_eligible_for_dispatch(serializer.validated_data['driver'])
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if not self.request.user.is_staff:
+            raise PermissionDenied('Only staff may delete delivery assignments.')
+        instance.delete()
 
 
 class LegalDocumentViewSet(

@@ -534,6 +534,12 @@ class DeliveryAssignmentSerializer(serializers.ModelSerializer):
         if obj.driver:
             return f"{obj.driver.first_name} {obj.driver.last_name}".strip()
         return ""
+
+    def create(self, validated_data):
+        from . import compliance_service
+
+        compliance_service.assert_driver_eligible_for_dispatch(validated_data['driver'])
+        return super().create(validated_data)
     
     class Meta:
         model = DeliveryAssignment

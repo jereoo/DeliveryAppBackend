@@ -27,3 +27,14 @@ See `metadata.json` for suggested form field values (issuer, policy #, etc.).
 4. Submit for review → log in as admin → Approve.
 
 Every page is titled **SAMPLE … TEST ONLY — NOT VALID**.
+
+## Cleanup misclassified uploads (pre-fix test data)
+
+If registration/insurance PDFs were uploaded under **Legal documents — Driver** before the July 2026 fix, they were stored as driver licenses. Reject them on Heroku:
+
+```powershell
+heroku run python manage.py cleanup_misclassified_driver_documents -a truck-buddy
+heroku run python manage.py cleanup_misclassified_driver_documents --apply -a truck-buddy
+```
+
+Dry-run lists matches; `--apply` rejects pending misclassified rows.

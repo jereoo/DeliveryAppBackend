@@ -32,7 +32,7 @@ from delivery.compliance_service import (
     user_can_access_vehicle,
 )
 from delivery import compliance_storage
-from delivery.models import Driver, DriverVehicle, LegalDocument, Vehicle
+from delivery.models import Customer, Delivery, Driver, DriverVehicle, LegalDocument, Vehicle
 
 
 def auth_client(user):
@@ -779,3 +779,140 @@ class Phase4BComplianceAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.vehicle.refresh_from_db()
         self.assertTrue(self.vehicle.active)
+
+
+def seed_full_driver_compliance(staff, driver, vehicle, *, days=60):
+    """Verified driver license + vehicle registration + commercial insurance."""
+    license_doc = create_document(
+        staff,
+        driver=driver,
+        data={
+            'document_type': DocumentType.DRIVER_LICENSE,
+            'expiry_date': date.today() + timedelta(days=days),
+            'issuer': 'ICBC',
+        },
+    )
+    mark_verified(staff, license_doc.id)
+    seed_verified_vehicle_compliance(staff, vehicle, days=days)
+
+
+class Phase4CDispatchTests(APITestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(username='staff4c', password='pass', is_staff=True)
+        self.staff_client = auth_client(self.staff)
+        self.driver_user = User.objects.create_user(username='driver4c', password='pass')
+        self.driver_client = auth_client(self.driver_user)
+        self.driver = Driver.objects.create(
+            user=self.driver_user,
+            phone_number='555-0400',
+            license_number='DL-4C-001',
+        )
+        self.customer_user = User.objects.create_user(username='cust4c', password='pass')
+        self.customer = Customer.objects.create(
+            user=self.customer_user,
+            phone_number='555-0401',
+            address_street='1 Main St',
+            address_city='Vancouver',
+            address_state='BC',
+            address_postal_code='V6B1A1',
+            address_country='CA',
+        )
+        self.vehicle = Vehicle.objects.create(
+            license_plate='4C001',
+            make='Ford',
+            model='F-150',
+            year=2022,
+            vin='1FT4CTEST00000001',
+            capacity=1500,
+            capacity_unit='kg',
+        )
+        DriverVehicle.objects.create(
+            driver=self.driver,
+            vehicle=self.vehicle,
+            assigned_from=timezone.now().date(),
+        )
+        self.delivery = Delivery.objects.create(
+            customer=self.customer,
+            pickup_location='123 Pickup St',
+            dropoff_location='456 Dropoff Ave',
+            item_description='Boxes',
+            status='Pending',
+        )
+
+    def test_dispatch_eligibility_blocked_without_compliance(self):
+        response = self.staff_client.get(f'/api/drivers/{self.driver.id}/dispatch-eligibility/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data['eligible'])
+        self.assertIn('driver_license_missing', response.data['blockers'])
+
+    def test_dispatch_eligibility_passes_when_compliant(self):
+        seed_full_driver_compliance(self.staff, self.driver, self.vehicle)
+        response = self.staff_client.get(f'/api/drivers/{self.driver.id}/dispatch-eligibility/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['eligible'])
+        self.assertEqual(response.data['blockers'], [])
+
+    def test_assignment_blocked_without_compliance(self):
+        response = self.staff_client.post(
+            '/api/assignments/',
+            {'delivery': self.delivery.id, 'driver': self.driver.id},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('compliance', response.data)
+
+    def test_assignment_succeeds_when_compliant(self):
+        seed_full_driver_compliance(self.staff, self.driver, self.vehicle)
+        response = self.staff_client.post(
+            '/api/assignments/',
+            {'delivery': self.delivery.id, 'driver': self.driver.id},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['driver'], self.driver.id)
+
+
+class MisclassifiedDriverDocumentTests(TestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(username='staff_misc', password='pass', is_staff=True)
+        self.driver_user = User.objects.create_user(username='driver_misc', password='pass')
+        self.driver = Driver.objects.create(
+            user=self.driver_user,
+            phone_number='555-0500',
+            license_number='DL-MISC-001',
+            first_name='Test',
+            last_name='Driver',
+        )
+
+    def test_detects_insurance_filename_on_driver_license(self):
+        doc = create_document(
+            self.staff,
+            driver=self.driver,
+            data={
+                'document_type': DocumentType.DRIVER_LICENSE,
+                'file_name': 'commercial_insurance_sample.pdf',
+            },
+        )
+        from delivery.compliance_service import find_misclassified_driver_documents
+        matches = find_misclassified_driver_documents()
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0].id, doc.id)
+
+    def test_cleanup_command_rejects_misclassified(self):
+        create_document(
+            self.staff,
+            driver=self.driver,
+            data={
+                'document_type': DocumentType.DRIVER_LICENSE,
+                'file_name': 'vehicle_registration_sample.pdf',
+                'policy_number': 'REG-TEST',
+            },
+        )
+        from delivery.compliance_service import reject_misclassified_driver_documents
+        count = reject_misclassified_driver_documents(
+            self.staff,
+            reason='Test cleanup',
+        )
+        self.assertEqual(count, 1)
+        doc = LegalDocument.objects.get(driver=self.driver, document_type=DocumentType.DRIVER_LICENSE)
+        self.assertEqual(doc.status, DocumentStatus.REJECTED)

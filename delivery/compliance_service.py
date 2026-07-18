@@ -23,6 +23,14 @@ REQUIRED_COMPLIANCE_TYPES = (
     DocumentType.COMMERCIAL_INSURANCE,
 )
 
+MISCLASSIFIED_DRIVER_LICENSE_FILENAME_HINTS = (
+    'commercial_insurance',
+    'vehicle_registration',
+    'insurance_sample',
+    'registration_sample',
+    'vehicle_inspection',
+)
+
 
 def user_can_access_driver(user, driver: Driver) -> bool:
     if user.is_staff:
@@ -362,11 +370,92 @@ def is_vehicle_compliant(vehicle: Vehicle) -> dict:
 
 
 def is_driver_eligible_for_dispatch(driver: Driver) -> dict:
-    """Phase 4A stub — always eligible; informational summary only."""
+    """Phase 4C — driver + assigned vehicle must be compliant for delivery assignment."""
+    blockers = get_dispatch_eligibility_blockers(driver)
     return {
-        'eligible': True,
+        'eligible': len(blockers) == 0,
+        'blockers': blockers,
         'summary': get_compliance_summary(driver),
     }
+
+
+def get_dispatch_eligibility_blockers(driver: Driver) -> list[str]:
+    """Machine-readable codes blocking dispatch assignment (Phase 4C)."""
+    blockers: list[str] = []
+    if not driver.active:
+        blockers.append('driver_inactive')
+
+    vehicle = get_driver_vehicle(driver)
+    if not vehicle:
+        blockers.append('no_vehicle_assigned')
+    elif not vehicle.active:
+        blockers.append('vehicle_inactive')
+
+    today = timezone.now().date()
+    docs = list(list_documents_for_driver(driver))
+    if not _verified_doc_exists(docs, DocumentType.DRIVER_LICENSE, driver_id=driver.id):
+        if _subject_has_expired_doc(driver_id=driver.id, doc_type=DocumentType.DRIVER_LICENSE, today=today):
+            blockers.append('driver_license_expired')
+        else:
+            blockers.append('driver_license_missing')
+
+    if vehicle:
+        blockers.extend(get_vehicle_reactivation_blockers(vehicle))
+
+    return blockers
+
+
+def assert_driver_eligible_for_dispatch(driver: Driver):
+    blockers = get_dispatch_eligibility_blockers(driver)
+    if blockers:
+        raise ValidationError({'compliance': blockers})
+
+
+def is_misclassified_driver_license_document(document: LegalDocument) -> bool:
+    """True when a driver-license row looks like registration/insurance uploaded to the wrong panel."""
+    if document.document_type != DocumentType.DRIVER_LICENSE or not document.driver_id:
+        return False
+    if document.status not in (DocumentStatus.PENDING, DocumentStatus.REJECTED):
+        return False
+    if document.coverage_type:
+        return True
+    if document.policy_number and str(document.policy_number).strip():
+        return True
+    file_name = (document.file_name or '').lower()
+    return any(hint in file_name for hint in MISCLASSIFIED_DRIVER_LICENSE_FILENAME_HINTS)
+
+
+def find_misclassified_driver_documents():
+    candidates = LegalDocument.objects.filter(
+        document_type=DocumentType.DRIVER_LICENSE,
+        driver__isnull=False,
+        status__in=(DocumentStatus.PENDING, DocumentStatus.REJECTED),
+    ).select_related('driver').order_by('driver_id', '-created_at')
+    return [doc for doc in candidates if is_misclassified_driver_license_document(doc)]
+
+
+def reject_misclassified_driver_documents(staff_user, *, reason: str) -> int:
+    if not staff_user.is_staff:
+        raise PermissionDenied('Staff required.')
+    count = 0
+    for document in find_misclassified_driver_documents():
+        if document.status == DocumentStatus.REJECTED:
+            continue
+        mark_rejected(staff_user, document.id, reason)
+        count += 1
+    return count
+
+
+def _subject_has_expired_doc(*, driver_id=None, vehicle_id=None, doc_type: str, today) -> bool:
+    query = LegalDocument.objects.filter(document_type=doc_type)
+    if driver_id is not None:
+        query = query.filter(driver_id=driver_id)
+    if vehicle_id is not None:
+        query = query.filter(vehicle_id=vehicle_id)
+    return query.filter(
+        Q(status=DocumentStatus.EXPIRED)
+        | Q(status=DocumentStatus.VERIFIED, expiry_date__lt=today),
+    ).exists()
 
 
 def get_presigned_upload_url(
