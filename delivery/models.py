@@ -231,6 +231,58 @@ class Driver(models.Model):
         ]
 
 
+class VehicleManufacturer(models.Model):
+    """Pickup truck manufacturer (reference data — not driver-entered)."""
+
+    name = models.CharField(max_length=64, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class VehicleModelSpec(models.Model):
+    """Manufacturer model line with approximate max payload/towing ratings."""
+
+    manufacturer = models.ForeignKey(
+        VehicleManufacturer,
+        on_delete=models.PROTECT,
+        related_name='model_specs',
+    )
+    name = models.CharField(max_length=80)
+    start_year = models.PositiveIntegerField()
+    end_year = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text='Null means still in production.',
+    )
+    max_payload_lb = models.PositiveIntegerField(
+        help_text='Approximate maximum factory payload rating (lb).',
+    )
+    max_towing_lb = models.PositiveIntegerField(
+        help_text='Approximate maximum factory towing rating (lb).',
+    )
+    notes = models.CharField(max_length=255, blank=True, default='')
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['manufacturer__name', 'name', 'start_year']
+        unique_together = ('manufacturer', 'name', 'start_year')
+        verbose_name = 'vehicle model spec'
+        verbose_name_plural = 'vehicle model specs'
+
+    def __str__(self):
+        end = self.end_year or 'present'
+        return f'{self.manufacturer.name} {self.name} ({self.start_year}-{end})'
+
+    @property
+    def max_payload_kg(self) -> int:
+        return int(round(self.max_payload_lb * 0.453592))
+
+
 class Vehicle(models.Model):
     CAPACITY_UNIT_CHOICES = [
         ('kg', 'Kilograms'),
@@ -238,6 +290,14 @@ class Vehicle(models.Model):
     ]
     
     license_plate = models.CharField(max_length=20, unique=True)
+    model_spec = models.ForeignKey(
+        VehicleModelSpec,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='vehicles',
+        help_text='Catalog reference for make/model and official payload limits.',
+    )
     make = models.CharField(max_length=50, help_text="Vehicle manufacturer (e.g., Ford, Toyota)")
     model = models.CharField(max_length=50, help_text="Vehicle model (e.g., Transit, Hiace)")
     year = models.PositiveIntegerField(help_text="Manufacturing year")

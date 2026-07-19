@@ -15,6 +15,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from delivery.models import Driver, DriverVehicle, Vehicle
 from delivery.vehicle_constants import MAX_VEHICLE_CAPACITY_KG, MAX_VEHICLE_CAPACITY_LB, max_vehicle_capacity_for_unit
+from tests.vehicle_catalog_helpers import get_catalog_spec_id
 
 
 def auth_client(user):
@@ -420,9 +421,8 @@ class DriverRegistrationWithVehicleTests(APITestCase, DriverVehicleCRUDFixtures)
             'phone_number': '5554443333',
             'license_issuing_region': 'CA-BC',
             'license_number': '3333333',
+            'vehicle_model_spec_id': get_catalog_spec_id(),
             'vehicle_license_plate': 'REG001',
-            'vehicle_make': 'Toyota',
-            'vehicle_model': 'Hiace',
             'vehicle_year': 2020,
             'vehicle_vin': '1REGTEST000000001',
             'vehicle_capacity': 1200,
@@ -458,9 +458,8 @@ class DriverRegistrationWithVehicleTests(APITestCase, DriverVehicleCRUDFixtures)
             'phone_number': '5554443334',
             'license_issuing_region': 'CA-BC',
             'license_number': '4444444',
+            'vehicle_model_spec_id': get_catalog_spec_id(),
             'vehicle_license_plate': 'DUPREG1',
-            'vehicle_make': 'Toyota',
-            'vehicle_model': 'Hiace',
             'vehicle_year': 2020,
             'vehicle_vin': '1REGTEST000000002',
             'vehicle_capacity': 1200,

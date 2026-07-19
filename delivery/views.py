@@ -14,7 +14,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from django.http import Http404
-from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer, LegalDocument
+from django.db.models import Prefetch
+from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer, LegalDocument, VehicleManufacturer, VehicleModelSpec
 from .driver_utils import get_driver_for_user, get_driver_vehicle
 from .vehicle_constants import MAX_VEHICLE_CAPACITY_KG, MAX_VEHICLE_CAPACITY_LB
 from .vehicle_utils import deactivate_vehicle, reactivate_vehicle, vehicle_has_history
@@ -34,7 +35,8 @@ from .serializers import (DeliverySerializer, DriverSerializer, VehicleSerialize
                          CustomerRegistrationSerializer, DeliveryCreateSerializer, DriverRegistrationSerializer,
                          DriverMeSerializer, DriverOwnedVehicleSerializer, LegalDocumentSerializer,
                          LegalDocumentCreateSerializer, LegalDocumentVerifySerializer,
-                         LegalDocumentRejectSerializer, DriverRejectSerializer, PresignedUploadSerializer)
+                         LegalDocumentRejectSerializer, DriverRejectSerializer, PresignedUploadSerializer,
+                         VehicleManufacturerCatalogSerializer)
 
 class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all()
@@ -666,3 +668,21 @@ class LegalDocumentViewSet(
         except DRFValidationError as exc:
             return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
         return Response(result)
+
+
+class VehicleCatalogViewSet(viewsets.ReadOnlyModelViewSet):
+    """Public read-only pickup truck catalog for driver vehicle registration."""
+
+    serializer_class = VehicleManufacturerCatalogSerializer
+    permission_classes = []
+    pagination_class = None
+
+    def get_queryset(self):
+        active_specs = VehicleModelSpec.objects.filter(is_active=True).order_by('name', 'start_year')
+        return (
+            VehicleManufacturer.objects.filter(is_active=True)
+            .prefetch_related(Prefetch('model_specs', queryset=active_specs))
+            .filter(model_specs__is_active=True)
+            .distinct()
+            .order_by('name')
+        )

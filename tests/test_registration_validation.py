@@ -13,6 +13,7 @@ from delivery.registration_messages import (
     USERNAME_TAKEN,
     VIN_TAKEN,
 )
+from tests.vehicle_catalog_helpers import get_catalog_spec_id
 
 
 class CustomerRegistrationValidationTests(APITestCase):
@@ -95,9 +96,8 @@ class DriverRegistrationValidationTests(APITestCase):
             'phone_number': '5554444444',
             'license_issuing_region': 'CA-BC',
             'license_number': '2222222',
+            'vehicle_model_spec_id': get_catalog_spec_id(),
             'vehicle_license_plate': 'NEWPLATE1',
-            'vehicle_make': 'Ford',
-            'vehicle_model': 'Transit',
             'vehicle_year': 2021,
             'vehicle_vin': '1NEWTEST000000001',
             'vehicle_capacity': 1200,

@@ -2,7 +2,18 @@
 from rest_framework import serializers
 from django.db import models
 from django.contrib.auth.models import User
-from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer, LegalDocument, DriverApprovalStatus
+from .models import (
+    Delivery,
+    Driver,
+    Vehicle,
+    DriverVehicle,
+    DeliveryAssignment,
+    Customer,
+    LegalDocument,
+    DriverApprovalStatus,
+    VehicleManufacturer,
+    VehicleModelSpec,
+)
 from .compliance_constants import DocumentType
 from .vehicle_constants import (
     MAX_VEHICLE_CAPACITY_KG,
@@ -17,6 +28,12 @@ from .registration_messages import (
     VIN_TAKEN,
 )
 from .driver_license_validation import list_license_regions, validate_driver_license_number
+from .vehicle_catalog_validation import (
+    get_active_model_spec,
+    max_capacity_for_spec,
+    validate_capacity_for_spec,
+    validate_model_year_for_spec,
+)
 
 class CustomerSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username')
@@ -593,6 +610,43 @@ class DriverWithVehicleSerializer(serializers.ModelSerializer):
         return driver
 
 
+class VehicleModelSpecCatalogSerializer(serializers.ModelSerializer):
+    manufacturer_name = serializers.CharField(source='manufacturer.name', read_only=True)
+    max_payload_kg = serializers.IntegerField(read_only=True)
+    max_capacity_kg = serializers.SerializerMethodField()
+    max_capacity_lb = serializers.SerializerMethodField()
+
+    class Meta:
+        model = VehicleModelSpec
+        fields = [
+            'id',
+            'manufacturer_name',
+            'name',
+            'start_year',
+            'end_year',
+            'max_payload_lb',
+            'max_payload_kg',
+            'max_towing_lb',
+            'max_capacity_kg',
+            'max_capacity_lb',
+            'notes',
+        ]
+
+    def get_max_capacity_kg(self, obj: VehicleModelSpec) -> int:
+        return max_capacity_for_spec(obj, 'kg')
+
+    def get_max_capacity_lb(self, obj: VehicleModelSpec) -> int:
+        return max_capacity_for_spec(obj, 'lb')
+
+
+class VehicleManufacturerCatalogSerializer(serializers.ModelSerializer):
+    models = VehicleModelSpecCatalogSerializer(source='model_specs', many=True, read_only=True)
+
+    class Meta:
+        model = VehicleManufacturer
+        fields = ['id', 'name', 'models']
+
+
 class DriverRegistrationSerializer(serializers.ModelSerializer):
     """Serializer for driver self-registration with User account creation"""
     username = serializers.CharField(source='user.username', help_text="Username for login")
@@ -603,8 +657,10 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(write_only=True, required=False, help_text="Full name (alternative to first_name + last_name)")
     
     vehicle_license_plate = serializers.CharField(write_only=True, help_text="Vehicle license plate")
-    vehicle_make = serializers.CharField(write_only=True, help_text="Vehicle make/manufacturer")
-    vehicle_model = serializers.CharField(write_only=True, help_text="Vehicle model")
+    vehicle_model_spec_id = serializers.IntegerField(
+        write_only=True,
+        help_text='Catalog id for vehicle make/model (from GET /vehicle-catalog/)',
+    )
     vehicle_year = serializers.IntegerField(write_only=True, help_text="Vehicle manufacturing year")
     vehicle_vin = serializers.CharField(write_only=True, max_length=17, help_text="Vehicle VIN")
     vehicle_capacity = serializers.IntegerField(write_only=True, help_text="Vehicle capacity")
@@ -622,8 +678,8 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Driver
         fields = ['username', 'email', 'password', 'first_name', 'last_name', 'full_name',
-                 'phone_number', 'license_number', 'license_issuing_region', 'vehicle_license_plate', 'vehicle_make',
-                 'vehicle_model', 'vehicle_year', 'vehicle_vin', 'vehicle_capacity', 'vehicle_capacity_unit']
+                 'phone_number', 'license_number', 'license_issuing_region', 'vehicle_license_plate',
+                 'vehicle_model_spec_id', 'vehicle_year', 'vehicle_vin', 'vehicle_capacity', 'vehicle_capacity_unit']
         extra_kwargs = {
             'license_number': {'validators': []},
         }
@@ -655,19 +711,34 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
 
         capacity = data.get('vehicle_capacity')
         unit = data.get('vehicle_capacity_unit', 'kg')
+        spec_id = data.get('vehicle_model_spec_id')
+        vehicle_year = data.get('vehicle_year')
+
+        if spec_id is None:
+            raise serializers.ValidationError({
+                'vehicle_model_spec_id': 'Select a vehicle make and model from the catalog.',
+            })
+
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        try:
+            spec = get_active_model_spec(spec_id)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
+        if vehicle_year is not None:
+            try:
+                validate_model_year_for_spec(spec, vehicle_year)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(exc.message_dict) from exc
+
         if capacity is not None:
-            if capacity <= 0:
-                raise serializers.ValidationError({
-                    'vehicle_capacity': 'Capacity must be greater than 0',
-                })
-            max_cap = max_vehicle_capacity_for_unit(unit)
-            if capacity > max_cap:
-                raise serializers.ValidationError({
-                    'vehicle_capacity': (
-                        f'Capacity cannot exceed {max_cap} {unit} '
-                        f'(max {MAX_VEHICLE_CAPACITY_KG} kg / {MAX_VEHICLE_CAPACITY_LB} lb).'
-                    ),
-                })
+            try:
+                validate_capacity_for_spec(spec, capacity, unit)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(exc.message_dict) from exc
+
+        data['_vehicle_model_spec'] = spec
 
         region = data.get('license_issuing_region')
         license_number = data.get('license_number')
@@ -675,7 +746,6 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'license_issuing_region': 'Select the province or state that issued your driver license.',
             })
-        from django.core.exceptions import ValidationError as DjangoValidationError
 
         try:
             normalized = validate_driver_license_number(region, license_number or '')
@@ -730,15 +800,19 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
         # Extract user and vehicle data
         user_data = validated_data.pop('user')
         vehicle_year = validated_data.pop('vehicle_year')
+        validated_data.pop('_vehicle_model_spec', None)
+        spec_id = validated_data.pop('vehicle_model_spec_id')
+        model_spec = VehicleModelSpec.objects.select_related('manufacturer').get(pk=spec_id)
         vehicle_data = {
             'license_plate': validated_data.pop('vehicle_license_plate'),
-            'make': validated_data.pop('vehicle_make'),
-            'model': validated_data.pop('vehicle_model'),
+            'model_spec': model_spec,
+            'make': model_spec.manufacturer.name,
+            'model': model_spec.name,
             'year': vehicle_year,
             'vin': validated_data.pop('vehicle_vin'),
             'capacity': validated_data.pop('vehicle_capacity'),
             'capacity_unit': validated_data.pop('vehicle_capacity_unit'),
-            'active': True
+            'active': True,
         }
         # Create User
         # CIO DIRECTIVE NOV 30 2025 – Drivers must never be created as admins

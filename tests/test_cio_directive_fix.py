@@ -11,6 +11,7 @@ from django.test import TestCase
 from django.contrib.auth.models import User
 from delivery.serializers import DriverRegistrationSerializer, CustomerRegistrationSerializer
 from delivery.models import Driver, Customer, Vehicle
+from tests.vehicle_catalog_helpers import get_catalog_spec_id
 
 
 class CIODirectiveFixTests(TestCase):
@@ -29,9 +30,8 @@ class CIODirectiveFixTests(TestCase):
             'phone_number': '5551234567',
             'license_issuing_region': 'CA-BC',
             'license_number': '5555555',
+            'vehicle_model_spec_id': get_catalog_spec_id(),
             'vehicle_license_plate': 'ABC123',
-            'vehicle_make': 'Ford',
-            'vehicle_model': 'Transit',
             'vehicle_year': 2020,
             'vehicle_vin': 'TEST1234567890123',  # 17 characters required
             'vehicle_capacity': 1000,
@@ -57,6 +57,9 @@ class CIODirectiveFixTests(TestCase):
         self.assertEqual(driver.last_name, 'Dollar')
         self.assertEqual(driver.phone_number, '5551234567')
         self.assertEqual(driver.license_number, '5555555')
+        vehicle = driver.drivervehicle_set.first().vehicle
+        self.assertEqual(vehicle.make, 'Ford')
+        self.assertEqual(vehicle.model, 'F-150')
         
         print(f"SUCCESS: Driver '{driver.first_name} {driver.last_name}' created correctly")
         print(f"   - User ID: {user.id}")

@@ -4,6 +4,7 @@ from delivery.views_auth import LoggingTokenObtainPairView
 from .views import (
     DeliveryViewSet, DriverViewSet, VehicleViewSet, DriverVehicleViewSet,
     DeliveryAssignmentViewSet, CustomerViewSet, LegalDocumentViewSet,
+    VehicleCatalogViewSet,
 )
 from rest_framework.routers import DefaultRouter
 
@@ -16,6 +17,7 @@ router.register(r'vehicles', VehicleViewSet, basename='vehicle')
 router.register(r'driver-vehicles', DriverVehicleViewSet, basename='drivervehicle')
 router.register(r'assignments', DeliveryAssignmentViewSet, basename='deliveryassignment')
 router.register(r'documents', LegalDocumentViewSet, basename='legaldocument')
+router.register(r'vehicle-catalog', VehicleCatalogViewSet, basename='vehiclecatalog')
 
 urlpatterns = [
     path('token/', LoggingTokenObtainPairView.as_view(), name='token_obtain_pair'),
