@@ -1,0 +1,49 @@
+---
+description: Database environment — Heroku production Postgres is primary; local DB unused
+alwaysApply: true
+---
+
+# Database & Environment — TruckBuddy / DeliveryAppBackend
+
+## Primary database (all current work)
+
+- **Heroku app:** `truck-buddy`
+- **Database:** Heroku Postgres (production add-on)
+- **App status:** Not public/live yet, but this is the **only DB in active use** since ~March 2026
+- **pgAdmin:** Connected to Heroku Postgres for viewing/querying — not where Django scripts run
+
+## Local PostgreSQL (not in use)
+
+- **Server:** `DESKTOP-V9URLRP-PostgreSQL` / `localhost:5432`
+- **Database name:** `delivery_app`
+- **Status:** Exists but **stale / unused** — local refresh **TBD** (user decision pending)
+- **Local `.env`:** No `DATABASE_URL` → `python manage.py` on this PC targets **local** `delivery_app`, **not** Heroku
+
+## Where to run Django management commands
+
+| Task | Where |
+|------|--------|
+| Migrations, seeds, `ensure_admin`, one-off fixes | **Heroku Dashboard → truck-buddy → Run console** |
+| Local `python manage.py …` | Only affects **local** DB unless user explicitly sets `DATABASE_URL` to Heroku (avoid) |
+
+Heroku CLI login is often blocked on this machine (Norton) — prefer **Run console**, not local `heroku run`.
+
+## Heroku Run console — common commands
+
+```bash
+python manage.py migrate
+ALLOW_DEMO_SEED=1 python manage.py seed_demo_data --force
+```
+
+## Seed / data safety
+
+- **`seed_demo_data --force`:** Replaces only `demo.driver` / `demo.customer` rows — relatively safe on Heroku with `ALLOW_DEMO_SEED=1`
+- **`seed_driver_vehicle_test_data --force`:** **Deletes ALL drivers, vehicles, and legal documents** — never run on Heroku unless user explicitly requests a full wipe
+- Seed commands **refuse Heroku** without `ALLOW_DEMO_SEED=1`
+
+## Agent guidance
+
+- Assume schema changes and test data questions refer to **Heroku**, not local Postgres
+- Do not tell the user to run destructive seeds locally when they mean to update Heroku
+- When suggesting DB verification, mention **pgAdmin (Heroku connection)** or Heroku Run console — not local pgAdmin server unless local refresh is in scope
+- Do not initialize or migrate local DB unless user asks to refresh local dev environment

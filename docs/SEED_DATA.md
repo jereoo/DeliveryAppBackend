@@ -31,13 +31,39 @@ python manage.py seed_demo_data --if-empty   # skip if any drivers exist
 
 | Role | Username | Password | Notes |
 |------|----------|----------|--------|
-| Driver | `demo.driver` | `DemoPass1234!` | Assigned vehicle `DEMO001` |
+| Driver | `demo.driver` | `DemoPass1234!` | Approved; Ford F-150 (`DEMO001`); CA-ON license; verified compliance docs |
 | Customer | `demo.customer` | `DemoPass1234!` | One pending delivery |
 | Admin | `admin` (or `ADMIN_USERNAME`) | `ADMIN_PASSWORD` env | Use `ensure_admin` |
 
 **Do not use these passwords on production.**
 
-Implementation: `delivery/seed_demo.py` (SSOT) → `management/commands/seed_demo_data.py`.
+Implementation: `delivery/seed_demo.py` + shared helpers in `delivery/seed_helpers.py` → `management/commands/seed_demo_data.py`.
+
+---
+
+## Driver / vehicle CRUD test data: `seed_driver_vehicle_test_data`
+
+Replaces **all** drivers, vehicles, driver assignments, and legal documents with catalog-compliant profiles.  
+Does **not** delete customers, deliveries, or delivery assignments.
+
+```powershell
+cd DeliveryAppBackend
+python manage.py seed_driver_vehicle_test_data --force
+```
+
+### Test driver accounts (local / staging only)
+
+| Username | Password | Approval | Active | Legal docs |
+|----------|----------|----------|--------|------------|
+| `test.driver.approved` | `TestPass1234!` | APPROVED | yes | All verified (license + registration + insurance) |
+| `test.driver.pending` | `TestPass1234!` | PENDING | no | All pending |
+| `test.driver.rejected` | `TestPass1234!` | REJECTED | no | None |
+| `test.driver.partial` | `TestPass1234!` | APPROVED | yes | Verified driver license only; vehicle docs pending |
+| `test.driver.inactive` | `TestPass1234!` | APPROVED | no | All verified (inactive vehicle/driver for reactivation QA) |
+
+Vehicles use **`VehicleModelSpec`** catalog entries (Ford F-150, Chevy Silverado 1500, etc.) with valid `license_issuing_region` values.
+
+Implementation: `delivery/seed_driver_vehicle_test_data.py` → `management/commands/seed_driver_vehicle_test_data.py`.
 
 ---
 
@@ -46,7 +72,8 @@ Implementation: `delivery/seed_demo.py` (SSOT) → `management/commands/seed_dem
 | Command | Use case |
 |---------|----------|
 | `python manage.py ensure_admin` | Bootstrap staff user (all environments) |
-| `python manage.py create_test_data --customers 20 --drivers 5` | Bulk load for mobile list testing |
+| `python manage.py seed_driver_vehicle_test_data --force` | **Driver/vehicle CRUD QA** — replaces all driver/vehicle/legal-doc rows |
+| `python manage.py create_test_data --customers 20 --drivers 5` | Bulk load for mobile list testing (**legacy driver fields — prefer seed above**) |
 | `python manage.py load_test_data` | **Legacy — broken** (old `Driver.name` model). Do not use. |
 
 ---

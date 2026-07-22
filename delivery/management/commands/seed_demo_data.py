@@ -42,7 +42,8 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('Demo seed complete.'))
         self.stdout.write(f"  Driver:   {result['driver_username']} / see docs/SEED_DATA.md")
         self.stdout.write(f"  Customer: {result['customer_username']} / see docs/SEED_DATA.md")
-        self.stdout.write(f"  Vehicle:  {result['vehicle_plate']}")
+        self.stdout.write(f"  Vehicle:  {result['vehicle_plate']} (catalog spec id={result['vehicle_model_spec_id']})")
+        self.stdout.write(f"  Legal docs: {result['legal_documents']} verified")
         self.stdout.write(f"  Delivery: id={result['delivery_id']}")
 
     def _guard_production(self):

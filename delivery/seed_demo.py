@@ -1,19 +1,40 @@
-"""Idempotent demo/staging seed data — single source of truth for Phase 2."""
+"""Idempotent demo/staging seed data — single source of truth for Phase 2+."""
+from __future__ import annotations
+
 from datetime import date
 
 from django.contrib.auth.models import User
 from django.db import transaction
 
-from delivery.models import Customer, Delivery, Driver, DriverVehicle, Vehicle
+from delivery.models import Customer, Delivery, Driver, DriverApprovalStatus, DriverVehicle, LegalDocument, Vehicle
+from delivery.seed_helpers import (
+    assign_vehicle_to_driver,
+    clear_legal_documents,
+    ensure_user_account,
+    get_or_create_seed_staff,
+    seed_compliance_documents,
+    upsert_catalog_vehicle,
+    upsert_driver,
+)
 
 DEMO_DRIVER_USERNAME = 'demo.driver'
 DEMO_CUSTOMER_USERNAME = 'demo.customer'
 DEMO_DRIVER_PASSWORD = 'DemoPass1234!'
 DEMO_CUSTOMER_PASSWORD = 'DemoPass1234!'
 
-DEMO_DRIVER_LICENSE = 'DL-DEMO-001'
+# CA-ON format (ServiceOntario): 1 letter + 14 digits
+DEMO_DRIVER_LICENSE = 'D88887777666666'
+DEMO_DRIVER_LICENSE_REGION = 'CA-ON'
 DEMO_VEHICLE_PLATE = 'DEMO001'
 DEMO_VEHICLE_VIN = '1DEMOVIN00000001'
+DEMO_VEHICLE_MANUFACTURER = 'Ford'
+DEMO_VEHICLE_MODEL = 'F-150'
+DEMO_VEHICLE_YEAR = 2022
+DEMO_VEHICLE_CAPACITY_KG = 1200
+
+DEMO_DELIVERY_PICKUP = '100 Demo Street, Toronto, ON M5H 2N2, Canada'
+DEMO_DELIVERY_DROPOFF = '200 Sample Ave, Toronto, ON M5B 1B1, Canada'
+DEMO_DELIVERY_DESCRIPTION = 'Demo delivery — office chair'
 
 
 class DemoSeedError(Exception):
@@ -40,39 +61,36 @@ def seed_demo_data(*, force: bool = False) -> dict:
     if force:
         _clear_demo_rows()
 
-    driver_user, driver_created = User.objects.get_or_create(
+    staff = get_or_create_seed_staff()
+
+    driver_user, driver_created = ensure_user_account(
         username=DEMO_DRIVER_USERNAME,
-        defaults={
-            'email': 'demo.driver@example.com',
-            'first_name': 'Demo',
-            'last_name': 'Driver',
-        },
+        email='demo.driver@example.com',
+        password=DEMO_DRIVER_PASSWORD,
+        first_name='Demo',
+        last_name='Driver',
+        force_password=force,
     )
-    if driver_created or force:
-        driver_user.set_password(DEMO_DRIVER_PASSWORD)
-        driver_user.save()
 
-    customer_user, customer_created = User.objects.get_or_create(
+    customer_user, customer_created = ensure_user_account(
         username=DEMO_CUSTOMER_USERNAME,
-        defaults={
-            'email': 'demo.customer@example.com',
-            'first_name': 'Demo',
-            'last_name': 'Customer',
-        },
+        email='demo.customer@example.com',
+        password=DEMO_CUSTOMER_PASSWORD,
+        first_name='Demo',
+        last_name='Customer',
+        force_password=force,
     )
-    if customer_created or force:
-        customer_user.set_password(DEMO_CUSTOMER_PASSWORD)
-        customer_user.save()
 
-    driver, _ = Driver.objects.update_or_create(
+    driver, _ = upsert_driver(
         user=driver_user,
-        defaults={
-            'first_name': 'Demo',
-            'last_name': 'Driver',
-            'phone_number': '5550100100',
-            'license_number': DEMO_DRIVER_LICENSE,
-            'active': True,
-        },
+        staff=staff,
+        first_name='Demo',
+        last_name='Driver',
+        phone_number='5550100100',
+        license_number=DEMO_DRIVER_LICENSE,
+        license_issuing_region=DEMO_DRIVER_LICENSE_REGION,
+        approval_status=DriverApprovalStatus.APPROVED,
+        active=True,
     )
 
     customer, _ = Customer.objects.update_or_create(
@@ -89,31 +107,30 @@ def seed_demo_data(*, force: bool = False) -> dict:
         },
     )
 
-    vehicle, _ = Vehicle.objects.update_or_create(
+    vehicle, vehicle_created = upsert_catalog_vehicle(
         license_plate=DEMO_VEHICLE_PLATE,
-        defaults={
-            'make': 'Ford',
-            'model': 'Transit',
-            'year': 2022,
-            'vin': DEMO_VEHICLE_VIN,
-            'capacity': 1500,
-            'capacity_unit': 'kg',
-            'active': True,
-        },
+        manufacturer=DEMO_VEHICLE_MANUFACTURER,
+        model=DEMO_VEHICLE_MODEL,
+        year=DEMO_VEHICLE_YEAR,
+        vin=DEMO_VEHICLE_VIN,
+        capacity_kg=DEMO_VEHICLE_CAPACITY_KG,
+        active=True,
     )
 
-    DriverVehicle.objects.update_or_create(
-        driver=driver,
-        vehicle=vehicle,
-        assigned_from=date.today(),
-        defaults={'assigned_to': None},
+    assign_vehicle_to_driver(driver, vehicle)
+
+    legal_documents = seed_compliance_documents(
+        staff,
+        driver,
+        vehicle,
+        'full_verified',
     )
 
     delivery, delivery_created = Delivery.objects.get_or_create(
         customer=customer,
-        pickup_location='100 Demo Street, Toronto, ON M5H 2N2, Canada',
-        dropoff_location='200 Sample Ave, Toronto, ON M5B 1B1, Canada',
-        item_description='Demo delivery — office chair',
+        pickup_location=DEMO_DELIVERY_PICKUP,
+        dropoff_location=DEMO_DELIVERY_DROPOFF,
+        item_description=DEMO_DELIVERY_DESCRIPTION,
         defaults={
             'status': 'Pending',
             'same_pickup_as_customer': False,
@@ -126,11 +143,15 @@ def seed_demo_data(*, force: bool = False) -> dict:
         'skipped': False,
         'driver_created': driver_created,
         'customer_created': customer_created,
+        'vehicle_created': vehicle_created,
         'delivery_created': delivery_created,
+        'legal_documents': legal_documents,
         'driver_username': DEMO_DRIVER_USERNAME,
         'customer_username': DEMO_CUSTOMER_USERNAME,
         'vehicle_plate': vehicle.license_plate,
         'delivery_id': delivery.id,
+        'driver_license_region': driver.license_issuing_region,
+        'vehicle_model_spec_id': vehicle.model_spec_id,
     }
 
 
@@ -143,9 +164,15 @@ def _clear_demo_rows():
     if customer_ids:
         Delivery.objects.filter(customer_id__in=customer_ids).delete()
     if driver_ids:
+        LegalDocument.objects.filter(driver_id__in=driver_ids).delete()
         DriverVehicle.objects.filter(driver_id__in=driver_ids).delete()
         Driver.objects.filter(id__in=driver_ids).delete()
     if customer_ids:
         Customer.objects.filter(id__in=customer_ids).delete()
-    Vehicle.objects.filter(license_plate=DEMO_VEHICLE_PLATE).delete()
+
+    vehicle = Vehicle.objects.filter(license_plate=DEMO_VEHICLE_PLATE).first()
+    if vehicle:
+        clear_legal_documents(vehicle=vehicle)
+        vehicle.delete()
+
     demo_users.delete()
