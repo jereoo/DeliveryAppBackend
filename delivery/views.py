@@ -29,6 +29,7 @@ from .compliance_permissions import (
     CanManageVehicleDocuments,
     CanVerifyLegalDocument,
     IsStaffOrDocumentOwner,
+    IsStaffUser,
 )
 from .serializers import (DeliverySerializer, DriverSerializer, VehicleSerializer, DriverVehicleSerializer, 
                          DeliveryAssignmentSerializer, DriverWithVehicleSerializer, CustomerSerializer, 
@@ -668,6 +669,31 @@ class LegalDocumentViewSet(
         except DRFValidationError as exc:
             return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
         return Response(result)
+
+
+class ComplianceAdminViewSet(viewsets.ViewSet):
+    """Staff compliance ops — inbox, expiring docs, fleet summary (Phase 4D)."""
+
+    permission_classes = [IsAuthenticated, IsStaffUser]
+
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        days = int(request.query_params.get('days', 30))
+        return Response(compliance_service.get_fleet_compliance_summary(expiring_within_days=days))
+
+    @action(detail=False, methods=['get'], url_path='inbox')
+    def inbox(self, request):
+        return Response(compliance_service.list_admin_compliance_inbox())
+
+    @action(detail=False, methods=['get'], url_path='expiring')
+    def expiring(self, request):
+        days = int(request.query_params.get('days', 30))
+        include_expired = request.query_params.get('include_expired', 'true').lower() != 'false'
+        rows = compliance_service.list_admin_expiring_documents(
+            within_days=days,
+            include_expired=include_expired,
+        )
+        return Response(rows)
 
 
 class VehicleCatalogViewSet(viewsets.ReadOnlyModelViewSet):

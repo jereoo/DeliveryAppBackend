@@ -15,7 +15,7 @@ from .compliance_constants import (
 )
 from . import compliance_storage
 from .driver_utils import get_driver_for_user, get_driver_vehicle
-from .models import Driver, DriverApprovalStatus, LegalDocument, Vehicle
+from .models import Driver, DriverApprovalStatus, DriverVehicle, LegalDocument, Vehicle
 
 REQUIRED_COMPLIANCE_TYPES = (
     DocumentType.DRIVER_LICENSE,
@@ -534,3 +534,100 @@ def get_presigned_download_url(user, document: LegalDocument) -> dict:
         'file_name': document.file_name or 'document.pdf',
         'expires_in': compliance_storage.PRESIGNED_DOWNLOAD_EXPIRES_SECONDS,
     }
+
+
+def _driver_display_name(driver: Driver | None) -> str:
+    if not driver:
+        return ''
+    name = f'{driver.first_name} {driver.last_name}'.strip()
+    if name:
+        return name
+    if driver.user_id and (driver.user.first_name or driver.user.last_name):
+        return f'{driver.user.first_name} {driver.user.last_name}'.strip()
+    return f'Driver #{driver.id}'
+
+
+def _serialize_admin_document_row(document: LegalDocument) -> dict:
+    driver = document.driver
+    vehicle = document.vehicle
+    if vehicle and not driver:
+        assignment = (
+            DriverVehicle.objects.filter(vehicle=vehicle, assigned_to__isnull=True)
+            .select_related('driver', 'driver__user')
+            .order_by('-assigned_from')
+            .first()
+        )
+        if assignment:
+            driver = assignment.driver
+
+    return {
+        'document_id': document.id,
+        'document_type': document.document_type,
+        'status': document.status,
+        'created_at': document.created_at,
+        'expiry_date': document.expiry_date,
+        'effective_date': document.effective_date,
+        'file_name': document.file_name,
+        'driver_id': driver.id if driver else None,
+        'driver_name': _driver_display_name(driver),
+        'vehicle_id': vehicle.id if vehicle else None,
+        'vehicle_plate': vehicle.license_plate if vehicle else None,
+    }
+
+
+def get_fleet_compliance_summary(*, expiring_within_days: int = 30) -> dict:
+    """Fleet-wide compliance counts for admin dashboard (Phase 4D)."""
+    today = timezone.now().date()
+    expiring_cutoff = today + timedelta(days=expiring_within_days)
+
+    return {
+        'documents_pending': LegalDocument.objects.filter(status=DocumentStatus.PENDING).count(),
+        'documents_expired': LegalDocument.objects.filter(status=DocumentStatus.EXPIRED).count(),
+        'documents_expiring_soon': LegalDocument.objects.filter(
+            status=DocumentStatus.VERIFIED,
+            expiry_date__gte=today,
+            expiry_date__lte=expiring_cutoff,
+        ).count(),
+        'drivers_pending_approval': Driver.objects.filter(
+            approval_status=DriverApprovalStatus.PENDING,
+        ).count(),
+        'drivers_rejected': Driver.objects.filter(
+            approval_status=DriverApprovalStatus.REJECTED,
+        ).count(),
+        'expiring_within_days': expiring_within_days,
+    }
+
+
+def list_admin_compliance_inbox():
+    """Pending legal documents across all drivers/vehicles (Phase 4D)."""
+    documents = (
+        LegalDocument.objects.filter(status=DocumentStatus.PENDING)
+        .select_related('driver', 'driver__user', 'vehicle')
+        .order_by('created_at')
+    )
+    return [_serialize_admin_document_row(doc) for doc in documents]
+
+
+def list_admin_expiring_documents(*, within_days: int = 30, include_expired: bool = True):
+    """Verified documents expiring soon or already expired (Phase 4D)."""
+    today = timezone.now().date()
+    expiring_cutoff = today + timedelta(days=within_days)
+
+    if include_expired:
+        status_filter = Q(status=DocumentStatus.EXPIRED) | Q(
+            status=DocumentStatus.VERIFIED,
+            expiry_date__lte=expiring_cutoff,
+        )
+    else:
+        status_filter = Q(
+            status=DocumentStatus.VERIFIED,
+            expiry_date__gte=today,
+            expiry_date__lte=expiring_cutoff,
+        )
+
+    documents = (
+        LegalDocument.objects.filter(status_filter)
+        .select_related('driver', 'driver__user', 'vehicle')
+        .order_by('expiry_date', 'document_type')
+    )
+    return [_serialize_admin_document_row(doc) for doc in documents]
