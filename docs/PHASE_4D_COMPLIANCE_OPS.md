@@ -1,6 +1,6 @@
 # Phase 4D — Compliance ops (backend API)
 
-**Status:** Backend API **partial** (July 2026). Mobile admin UI + email reminders still Todo.
+**Status:** Backend API **Done** (July 2026). Mobile admin UI **Done** (inbox, expiring, dashboard summary). Email reminders + Heroku Scheduler still Todo.
 
 ---
 
@@ -56,4 +56,4 @@ Heroku Dashboard → truck-buddy → **Resources** → add **Heroku Scheduler** 
 
 - `docs/COMPLIANCE.md` — document types and verify flow
 - `docs/SEED_DATA.md` — demo/test accounts for QA
-- Mobile Phase 4D UI — Todo (admin inbox screen)
+- Mobile Phase 4D UI — **Done** — `AdminComplianceScreen` + dashboard summary counts
