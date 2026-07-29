@@ -14,6 +14,7 @@ from .compliance_constants import (
     VEHICLE_DOCUMENT_TYPES,
 )
 from . import compliance_storage
+from .compliance_reminder_service import clear_expiry_reminder_fields
 from .driver_utils import get_driver_for_user, get_driver_vehicle
 from .models import Driver, DriverApprovalStatus, DriverVehicle, LegalDocument, Vehicle
 
@@ -267,6 +268,7 @@ def mark_verified(staff_user, document_id: int, notes=None) -> LegalDocument:
 
     _expire_superseded_verified(document)
 
+    clear_expiry_reminder_fields(document)
     document.status = DocumentStatus.VERIFIED
     document.verified_by = staff_user
     document.verified_at = timezone.now()

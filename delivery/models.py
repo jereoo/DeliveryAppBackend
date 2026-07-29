@@ -425,6 +425,21 @@ class LegalDocument(models.Model):
     verified_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.TextField(blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
+    expiry_reminder_30_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the 30-day-before-expiry email was sent (Phase 4D).',
+    )
+    expiry_reminder_14_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the 14-day-before-expiry email was sent (Phase 4D).',
+    )
+    expiry_reminder_0_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the expiry-day email was sent (Phase 4D).',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
