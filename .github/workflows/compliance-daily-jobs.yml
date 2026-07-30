@@ -68,33 +68,56 @@ jobs:
       - name: Wait for dyno to finish
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-          DYNO_ID: ${{ steps.start.outputs.dyno_id }}
+          DYNO_NAME: ${{ steps.start.outputs.dyno_name }}
         run: |
           set -euo pipefail
           deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
+          seen=false
+          dyno_name_encoded=$(jq -rn --arg n "$DYNO_NAME" '$n|@uri')
 
           while [ "$(date +%s)" -lt "$deadline" ]; do
-            response=$(curl -fsS \
+            http_code=$(curl -sS -o /tmp/dyno.json -w "%{http_code}" \
               -H "Authorization: Bearer ${HEROKU_API_KEY}" \
               -H "Accept: application/vnd.heroku+json; version=3" \
-              "https://api.heroku.com/apps/${HEROKU_APP}/dynos/${DYNO_ID}")
+              "https://api.heroku.com/apps/${HEROKU_APP}/dynos/${dyno_name_encoded}")
 
-            state=$(echo "$response" | jq -r '.state // empty')
+            if [ "$http_code" = "404" ]; then
+              if [ "$seen" = "true" ]; then
+                echo "Dyno ${DYNO_NAME} finished and was removed (404) — treating as success."
+                exit 0
+              fi
+              echo "::error::Dyno ${DYNO_NAME} not found before it entered a running state."
+              exit 1
+            fi
+
+            if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+              echo "::error::Heroku dyno info returned HTTP ${http_code}"
+              cat /tmp/dyno.json || true
+              exit 1
+            fi
+
+            seen=true
+            state=$(jq -r '.state // empty' /tmp/dyno.json)
             echo "Dyno state: ${state:-unknown}"
 
             case "$state" in
-              complete)
-                echo "Compliance daily jobs finished successfully."
+              up|starting)
+                ;;
+              idle)
+                echo "Compliance daily jobs finished (dyno idle)."
                 exit 0
                 ;;
               crashed|down)
                 echo "::error::Dyno ended in state: ${state}"
                 exit 1
                 ;;
+              *)
+                echo "Unexpected dyno state: ${state} — continuing to poll"
+                ;;
             esac
 
             sleep "$POLL_SECONDS"
           done
 
-          echo "::error::Timed out after ${TIMEOUT_MINUTES} minutes waiting for dyno ${DYNO_ID}"
+          echo "::error::Timed out after ${TIMEOUT_MINUTES} minutes waiting for dyno ${DYNO_NAME}"
           exit 1

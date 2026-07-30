@@ -28,6 +28,8 @@ python manage.py run_compliance_daily_jobs
 
 Requires GitHub secret **`HEROKU_API_KEY`** (same token as deploy verify).
 
+The workflow starts a one-off `run` dyno and polls until it finishes. One-off dynos are **removed when done**, so a **404** after the dyno was seen running is treated as success (not an error).
+
 Manual run: GitHub → **Actions** → **Compliance Daily Jobs** → **Run workflow** (optional `--dry-run`).
 
 ### Single command (Heroku one-off / local)
