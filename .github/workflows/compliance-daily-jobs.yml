@@ -58,8 +58,13 @@ jobs:
             -d "$payload" \
             "https://api.heroku.com/apps/${HEROKU_APP}/dynos")
 
-          dyno_id=$(echo "$response" | jq -r '.id')
-          dyno_name=$(echo "$response" | jq -r '.name')
+          dyno_id=$(echo "$response" | jq -r '.id // empty')
+          dyno_name=$(echo "$response" | jq -r '.name // empty')
+          if [ -z "$dyno_id" ] || [ -z "$dyno_name" ]; then
+            echo "::error::Heroku create-dyno response missing id or name."
+            echo "$response" | jq .
+            exit 1
+          fi
           echo "Started dyno ${dyno_name} (${dyno_id}): ${command}"
           echo "dyno_id=${dyno_id}" >> "$GITHUB_OUTPUT"
           echo "dyno_name=${dyno_name}" >> "$GITHUB_OUTPUT"
@@ -73,32 +78,34 @@ jobs:
           set -euo pipefail
           deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
           seen=false
-          dyno_name_encoded=$(jq -rn --arg n "$DYNO_NAME" '$n|@uri')
 
           while [ "$(date +%s)" -lt "$deadline" ]; do
-            http_code=$(curl -sS -o /tmp/dyno.json -w "%{http_code}" \
+            http_code=$(curl -sS -o /tmp/dynos.json -w "%{http_code}" \
               -H "Authorization: Bearer ${HEROKU_API_KEY}" \
               -H "Accept: application/vnd.heroku+json; version=3" \
-              "https://api.heroku.com/apps/${HEROKU_APP}/dynos/${dyno_name_encoded}")
+              "https://api.heroku.com/apps/${HEROKU_APP}/dynos")
 
-            if [ "$http_code" = "404" ]; then
-              if [ "$seen" = "true" ]; then
-                echo "Dyno ${DYNO_NAME} finished and was removed (404) — treating as success."
-                exit 0
-              fi
-              echo "::error::Dyno ${DYNO_NAME} not found before it entered a running state."
+            if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+              echo "::error::Heroku dyno list returned HTTP ${http_code}"
+              cat /tmp/dynos.json || true
               exit 1
             fi
 
-            if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
-              echo "::error::Heroku dyno info returned HTTP ${http_code}"
-              cat /tmp/dyno.json || true
-              exit 1
+            state=$(jq -r --arg name "$DYNO_NAME" \
+              '[.[] | select(.name == $name) | .state] | first // empty' /tmp/dynos.json)
+
+            if [ -z "$state" ]; then
+              if [ "$seen" = "true" ]; then
+                echo "Dyno ${DYNO_NAME} finished and was removed from the dyno list — treating as success."
+                exit 0
+              fi
+              echo "Dyno ${DYNO_NAME} not visible yet — waiting..."
+              sleep "$POLL_SECONDS"
+              continue
             fi
 
             seen=true
-            state=$(jq -r '.state // empty' /tmp/dyno.json)
-            echo "Dyno state: ${state:-unknown}"
+            echo "Dyno state: ${state}"
 
             case "$state" in
               up|starting)
