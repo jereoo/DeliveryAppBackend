@@ -1,6 +1,6 @@
 # Phase 4D — Compliance ops (backend API + scheduled jobs)
 
-**Status:** Backend API **Done**. Mobile admin UI **Done**. Nightly jobs + email reminders **Done** (deploy + Heroku Scheduler setup required).
+**Status:** Backend API **Done**. Mobile admin UI **Done**. Nightly jobs + email reminders **Done**. GitHub Actions cron + SMTP on Heroku **ops setup**.
 
 ---
 
@@ -18,7 +18,19 @@ All require JWT + `is_staff=True`.
 
 ## Nightly jobs (Phase 4D #1 + #2)
 
-### Single command (recommended for Heroku Scheduler)
+### Scheduled via GitHub Actions (recommended)
+
+Workflow **`.github/workflows/compliance-daily-jobs.yml`** runs daily at **06:00 UTC** and starts a Heroku one-off dyno:
+
+```bash
+python manage.py run_compliance_daily_jobs
+```
+
+Requires GitHub secret **`HEROKU_API_KEY`** (same token as deploy verify).
+
+Manual run: GitHub → **Actions** → **Compliance Daily Jobs** → **Run workflow** (optional `--dry-run`).
+
+### Single command (Heroku one-off / local)
 
 ```bash
 python manage.py run_compliance_daily_jobs
@@ -39,14 +51,14 @@ python manage.py run_compliance_daily_jobs --dry-run
 
 ---
 
-## Heroku Scheduler setup (truck-buddy)
+## Ops checklist (truck-buddy)
 
 ### 1. Deploy backend + migrate
 
-After merge to `main` (auto-deploy) or manual deploy:
+Migrations run automatically on deploy via `Procfile` release phase:
 
-```bash
-heroku run python manage.py migrate -a truck-buddy
+```procfile
+release: python manage.py migrate --noinput
 ```
 
 ### 2. Configure email (required for reminders to send)
@@ -66,21 +78,13 @@ heroku config:set DEFAULT_FROM_EMAIL=you@yourdomain.com -a truck-buddy
 
 Or add the **SendGrid** Heroku add-on and map its credentials to the vars above.
 
-### 3. Add Heroku Scheduler
+### 3. Enable GitHub cron schedule
 
-Dashboard → **truck-buddy** → **Resources** → **Find more add-ons** → **Heroku Scheduler** → Install (free tier).
+1. Ensure **`HEROKU_API_KEY`** is set in GitHub → **DeliveryAppBackend** → Settings → Secrets → Actions (same token as deploy verify).
+2. Workflow **`Compliance Daily Jobs`** runs on schedule; confirm under **Actions** after the first 06:00 UTC run.
+3. Optional test: **Actions** → **Compliance Daily Jobs** → **Run workflow** → dry-run `true`.
 
-### 4. Create daily job
-
-Dashboard → **Heroku Scheduler** → **Add job**:
-
-| Field | Value |
-|-------|--------|
-| Schedule | Daily (e.g. **06:00 UTC**) |
-| Command | `python manage.py run_compliance_daily_jobs` |
-| Dyno size | Standard-1X (or Basic if available) |
-
-### 5. Verify (manual one-off)
+### 4. Verify manually (optional)
 
 ```bash
 heroku run python manage.py run_compliance_daily_jobs --dry-run -a truck-buddy

@@ -3,6 +3,7 @@
 **Last updated:** July 16, 2026  
 **Canonical workflow:** `.github/workflows/phase1-ci.yml`  
 **Deploy verify:** `.github/workflows/deploy-verify.yml`  
+**Compliance cron:** `.github/workflows/compliance-daily-jobs.yml` (daily Heroku one-off)  
 **Production:** Heroku `truck-buddy` (auto-deploy from `main`)
 
 ---
@@ -73,6 +74,19 @@ Workflow **`Verify Heroku Deploy`** runs automatically after **Phase 1 Backend C
 ### GitHub email notifications
 
 Profile → **Notifications** → enable **Actions** (workflow failures) for email alerts when deploy verify fails.
+
+---
+
+## Scheduled compliance jobs (Phase 4D)
+
+Workflow **`Compliance Daily Jobs`** (`.github/workflows/compliance-daily-jobs.yml`):
+
+| Trigger | When |
+|---------|------|
+| `schedule` | Daily at **06:00 UTC** |
+| `workflow_dispatch` | Manual run; optional dry-run |
+
+Runs `python manage.py run_compliance_daily_jobs` on Heroku via Platform API (one-off dyno). Uses secret **`HEROKU_API_KEY`**.
 
 ---
 

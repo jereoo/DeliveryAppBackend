@@ -1,0 +1,100 @@
+# Nightly compliance maintenance on Heroku (Phase 4D).
+# Replaces Heroku Scheduler — uses HEROKU_API_KEY to start a one-off dyno.
+name: Compliance Daily Jobs
+
+on:
+  schedule:
+    # 06:00 UTC daily — adjust as needed (e.g. 14:00 UTC ≈ 6 AM Pacific DST)
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Pass --dry-run to the management command'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+env:
+  HEROKU_APP: truck-buddy
+  HEROKU_COMMAND: python manage.py run_compliance_daily_jobs
+  POLL_SECONDS: 15
+  TIMEOUT_MINUTES: 15
+
+jobs:
+  run-on-heroku:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require Heroku API key
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+        run: |
+          if [ -z "$HEROKU_API_KEY" ]; then
+            echo "::error::HEROKU_API_KEY secret is not set."
+            echo "Create at: https://dashboard.heroku.com/account/applications/authorizations"
+            exit 1
+          fi
+
+      - name: Start one-off dyno on Heroku
+        id: start
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+          command="${HEROKU_COMMAND}"
+          if [ "$DRY_RUN" = "true" ]; then
+            command="${command} --dry-run"
+          fi
+
+          payload=$(jq -n --arg cmd "$command" '{command: $cmd, type: "run", attach: false}')
+
+          response=$(curl -fsS -X POST \
+            -H "Authorization: Bearer ${HEROKU_API_KEY}" \
+            -H "Accept: application/vnd.heroku+json; version=3" \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "https://api.heroku.com/apps/${HEROKU_APP}/dynos")
+
+          dyno_id=$(echo "$response" | jq -r '.id')
+          dyno_name=$(echo "$response" | jq -r '.name')
+          echo "Started dyno ${dyno_name} (${dyno_id}): ${command}"
+          echo "dyno_id=${dyno_id}" >> "$GITHUB_OUTPUT"
+          echo "dyno_name=${dyno_name}" >> "$GITHUB_OUTPUT"
+          echo "command=${command}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for dyno to finish
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          DYNO_ID: ${{ steps.start.outputs.dyno_id }}
+        run: |
+          set -euo pipefail
+          deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
+
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            response=$(curl -fsS \
+              -H "Authorization: Bearer ${HEROKU_API_KEY}" \
+              -H "Accept: application/vnd.heroku+json; version=3" \
+              "https://api.heroku.com/apps/${HEROKU_APP}/dynos/${DYNO_ID}")
+
+            state=$(echo "$response" | jq -r '.state // empty')
+            echo "Dyno state: ${state:-unknown}"
+
+            case "$state" in
+              complete)
+                echo "Compliance daily jobs finished successfully."
+                exit 0
+                ;;
+              crashed|down)
+                echo "::error::Dyno ended in state: ${state}"
+                exit 1
+                ;;
+            esac
+
+            sleep "$POLL_SECONDS"
+          done
+
+          echo "::error::Timed out after ${TIMEOUT_MINUTES} minutes waiting for dyno ${DYNO_ID}"
+          exit 1
