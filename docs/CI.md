@@ -1,6 +1,6 @@
 # CI/CD — DeliveryAppBackend
 
-**Last updated:** July 16, 2026  
+**Last updated:** July 30, 2026  
 **Canonical workflow:** `.github/workflows/phase1-ci.yml`  
 **Deploy verify:** `.github/workflows/deploy-verify.yml`  
 **Compliance cron:** `.github/workflows/compliance-daily-jobs.yml` (daily Heroku one-off)  
@@ -86,9 +86,13 @@ Workflow **`Compliance Daily Jobs`** (`.github/workflows/compliance-daily-jobs.y
 | `schedule` | Daily at **06:00 UTC** |
 | `workflow_dispatch` | Manual run; optional dry-run |
 
-Runs `python manage.py run_compliance_daily_jobs` on Heroku via Platform API (one-off dyno). Uses secret **`HEROKU_API_KEY`**.
+Runs `python manage.py run_compliance_daily_jobs` on Heroku via Platform API (one-off `run` dyno). Uses secret **`HEROKU_API_KEY`**.
 
----
+**Polling:** The wait step lists dynos (`GET /apps/truck-buddy/dynos`) and matches by name (`run.N`). One-off dynos disappear when finished — that is treated as success (not a 404 failure).
+
+**Verified:** GitHub Actions run [30509255544](https://github.com/jereoo/DeliveryAppBackend/actions/runs/30509255544) (dry-run, commit `ffdaae7`).
+
+See also [`docs/PHASE_4D_COMPLIANCE_OPS.md`](PHASE_4D_COMPLIANCE_OPS.md).
 
 ## Branch strategy
 

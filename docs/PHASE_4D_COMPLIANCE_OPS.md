@@ -1,6 +1,6 @@
 # Phase 4D — Compliance ops (backend API + scheduled jobs)
 
-**Status:** Backend API **Done**. Mobile admin UI **Done**. Nightly jobs + email reminders **Done**. GitHub Actions cron + SMTP on Heroku **ops setup**.
+**Status:** Backend API **Done**. Mobile admin UI **Done**. Nightly jobs + email reminders **Done**. GitHub Actions cron **Done** (verified). SMTP on Heroku **ops setup**.
 
 ---
 
@@ -85,6 +85,7 @@ Or add the **SendGrid** Heroku add-on and map its credentials to the vars above.
 1. Ensure **`HEROKU_API_KEY`** is set in GitHub → **DeliveryAppBackend** → Settings → Secrets → Actions (same token as deploy verify).
 2. Workflow **`Compliance Daily Jobs`** runs on schedule; confirm under **Actions** after the first 06:00 UTC run.
 3. Optional test: **Actions** → **Compliance Daily Jobs** → **Run workflow** → dry-run `true`.
+4. **Verified (July 30, 2026):** Run [30509255544](https://github.com/jereoo/DeliveryAppBackend/actions/runs/30509255544) — dry-run one-off dyno started, polled via dyno list, exited green when dyno removed (`ffdaae7`).
 
 ### 4. Verify manually (optional)
 
