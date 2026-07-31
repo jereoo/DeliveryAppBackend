@@ -19,6 +19,13 @@ class DriverApprovalStatus(models.TextChoices):
     REJECTED = 'REJECTED', 'Rejected'
 
 
+class VehicleApprovalStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending approval'
+    APPROVED = 'APPROVED', 'Approved'
+    RESUBMIT = 'RESUBMIT', 'Resubmit required'
+    REJECTED = 'REJECTED', 'Rejected'
+
+
 class Customer(models.Model):
     COUNTRY_CHOICES = [
         ('CA', 'Canada'),
@@ -310,6 +317,24 @@ class Vehicle(models.Model):
         help_text="Unit of measurement for capacity"
     )
     active = models.BooleanField(default=True)
+    approval_status = models.CharField(
+        max_length=20,
+        choices=VehicleApprovalStatus.choices,
+        default=VehicleApprovalStatus.PENDING,
+    )
+    resubmit_reason = models.TextField(
+        blank=True,
+        null=True,
+        help_text='Staff message when vehicle is sent back for driver correction.',
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='vehicles_approved',
+    )
 
     def __str__(self):
         return f"{self.make} {self.model} ({self.year}) - {self.license_plate} - {self.capacity}{self.capacity_unit}"

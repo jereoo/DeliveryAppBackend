@@ -825,6 +825,8 @@ class Phase4CDispatchTests(APITestCase):
             vin='1FT4CTEST00000001',
             capacity=1500,
             capacity_unit='kg',
+            active=True,
+            approval_status='APPROVED',
         )
         DriverVehicle.objects.create(
             driver=self.driver,

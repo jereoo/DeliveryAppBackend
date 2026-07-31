@@ -15,7 +15,7 @@ from .compliance_constants import (
 )
 from . import compliance_storage
 from .compliance_reminder_service import clear_expiry_reminder_fields
-from .driver_utils import get_driver_for_user, get_driver_vehicle
+from .driver_utils import get_current_vehicle, get_driver_for_user, get_driver_vehicle
 from .models import Driver, DriverApprovalStatus, DriverVehicle, LegalDocument, Vehicle
 
 REQUIRED_COMPLIANCE_TYPES = (
@@ -391,9 +391,15 @@ def get_dispatch_eligibility_blockers(driver: Driver) -> list[str]:
     elif not driver.active:
         blockers.append('driver_inactive')
 
-    vehicle = get_driver_vehicle(driver)
+    vehicle = get_current_vehicle(driver)
     if not vehicle:
         blockers.append('no_vehicle_assigned')
+    elif getattr(vehicle, 'approval_status', None) == 'PENDING':
+        blockers.append('vehicle_pending_approval')
+    elif getattr(vehicle, 'approval_status', None) == 'RESUBMIT':
+        blockers.append('vehicle_resubmit_required')
+    elif getattr(vehicle, 'approval_status', None) == 'REJECTED':
+        blockers.append('vehicle_rejected')
     elif not vehicle.active:
         blockers.append('vehicle_inactive')
 

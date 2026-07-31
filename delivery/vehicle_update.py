@@ -1,19 +1,25 @@
 """Centralized vehicle update with role-based authorization."""
+
 from django.http import Http404
 from rest_framework.exceptions import ValidationError
 
-from .driver_utils import get_driver_for_user, get_current_assignment, get_driver_vehicle
+from .driver_utils import get_current_vehicle, get_driver_for_user
 from .serializers import DriverOwnedVehicleSerializer, VehicleSerializer
+from .vehicle_field_policy import (
+    assert_staff_may_edit_vehicle_fields,
+    filter_driver_vehicle_patch_data,
+    identity_locked_for_driver,
+)
 
 
 def user_can_update_vehicle(user, vehicle) -> bool:
-    """Staff may edit any vehicle; drivers only their currently assigned vehicle."""
+    """Staff may edit any vehicle; drivers only their current assigned vehicle."""
     if user.is_staff:
         return True
     driver = get_driver_for_user(user)
     if not driver:
         return False
-    assigned = get_driver_vehicle(driver)
+    assigned = get_current_vehicle(driver)
     return assigned is not None and assigned.id == vehicle.id
 
 
@@ -33,8 +39,8 @@ def assert_driver_may_edit_vehicle(user, vehicle):
     driver = get_driver_for_user(user)
     if not driver:
         raise Http404()
-    assignment = get_current_assignment(driver)
-    if not assignment or assignment.vehicle_id != vehicle.id:
+    current = get_current_vehicle(driver)
+    if not current or current.id != vehicle.id:
         if not vehicle.active:
             raise ValidationError({
                 'error': 'Vehicle is inactive. Contact admin to reactivate before editing.',
@@ -58,6 +64,18 @@ def update_vehicle(user, vehicle, data, *, partial=True):
     """
     assert_can_update_vehicle(user, vehicle)
     assert_driver_may_edit_vehicle(user, vehicle)
+
+    if user.is_staff:
+        assert_staff_may_edit_vehicle_fields(vehicle, data)
+    else:
+        data = filter_driver_vehicle_patch_data(vehicle, data)
+        if not data:
+            if identity_locked_for_driver(vehicle):
+                raise ValidationError({
+                    'detail': 'Vehicle identity is locked after approval. Upload compliance documents or wait for staff resubmit instructions.',
+                })
+            raise ValidationError({'detail': 'No editable fields in this request.'})
+
     serializer_cls = serializer_class_for_user(user)
     serializer = serializer_cls(vehicle, data=data, partial=partial)
     serializer.is_valid(raise_exception=True)

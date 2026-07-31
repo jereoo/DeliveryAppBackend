@@ -11,6 +11,7 @@ from .models import (
     Customer,
     LegalDocument,
     DriverApprovalStatus,
+    VehicleApprovalStatus,
     VehicleManufacturer,
     VehicleModelSpec,
 )
@@ -397,10 +398,32 @@ class DriverSerializer(serializers.ModelSerializer):
 class VehicleSerializer(serializers.ModelSerializer):
     capacity_display = serializers.CharField(read_only=True, help_text="Formatted capacity with unit")
     full_model = serializers.CharField(read_only=True, help_text="Combined make and model for backward compatibility")
-    
+    model_spec_id = serializers.IntegerField(read_only=True, allow_null=True)
+    identity_locked = serializers.SerializerMethodField()
+    registration_verified = serializers.SerializerMethodField()
+    can_replace_vehicle = serializers.SerializerMethodField()
+
     class Meta:
         model = Vehicle
-        fields = ['id', 'license_plate', 'make', 'model', 'year', 'vin', 'capacity', 'capacity_unit', 'capacity_display', 'full_model', 'active']
+        fields = [
+            'id', 'license_plate', 'make', 'model', 'year', 'vin', 'capacity', 'capacity_unit',
+            'capacity_display', 'full_model', 'active', 'approval_status', 'resubmit_reason',
+            'approved_at', 'model_spec_id', 'identity_locked', 'registration_verified',
+            'can_replace_vehicle',
+        ]
+        read_only_fields = ['approved_at']
+
+    def get_identity_locked(self, obj: Vehicle) -> bool:
+        from .vehicle_field_policy import identity_locked_for_driver
+        return identity_locked_for_driver(obj)
+
+    def get_registration_verified(self, obj: Vehicle) -> bool:
+        from .vehicle_field_policy import vehicle_has_verified_registration
+        return vehicle_has_verified_registration(obj)
+
+    def get_can_replace_vehicle(self, obj: Vehicle) -> bool:
+        from .vehicle_field_policy import driver_may_replace_vehicle
+        return driver_may_replace_vehicle(obj)
     
     def validate(self, data):
         capacity = data.get('capacity')
@@ -502,7 +525,11 @@ class DriverOwnedVehicleSerializer(VehicleSerializer):
     active = serializers.BooleanField(required=False)
 
     class Meta(VehicleSerializer.Meta):
-        read_only_fields = ['id', 'capacity_display', 'full_model']
+        read_only_fields = [
+            'id', 'capacity_display', 'full_model', 'approval_status', 'resubmit_reason',
+            'approved_at', 'model_spec_id', 'identity_locked', 'registration_verified',
+            'can_replace_vehicle',
+        ]
 
     def validate_active(self, value):
         if self.instance and not self.instance.active and value is True:
@@ -794,28 +821,23 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
         return value.upper()
     
     def create(self, validated_data):
-        from django.utils import timezone
-        # Remove full_name from validated_data if present (already processed in validate())
+        from .vehicle_onboarding_service import assign_vehicle_to_driver, create_vehicle_from_catalog
+
         validated_data.pop('full_name', None)
-        # Extract user and vehicle data
         user_data = validated_data.pop('user')
         vehicle_year = validated_data.pop('vehicle_year')
         validated_data.pop('_vehicle_model_spec', None)
         spec_id = validated_data.pop('vehicle_model_spec_id')
-        model_spec = VehicleModelSpec.objects.select_related('manufacturer').get(pk=spec_id)
-        vehicle_data = {
-            'license_plate': validated_data.pop('vehicle_license_plate'),
-            'model_spec': model_spec,
-            'make': model_spec.manufacturer.name,
-            'model': model_spec.name,
-            'year': vehicle_year,
-            'vin': validated_data.pop('vehicle_vin'),
-            'capacity': validated_data.pop('vehicle_capacity'),
-            'capacity_unit': validated_data.pop('vehicle_capacity_unit'),
-            'active': True,
-        }
-        # Create User
-        # CIO DIRECTIVE NOV 30 2025 – Drivers must never be created as admins
+        vehicle = create_vehicle_from_catalog(
+            vehicle_model_spec_id=spec_id,
+            vehicle_year=vehicle_year,
+            vehicle_license_plate=validated_data.pop('vehicle_license_plate'),
+            vehicle_vin=validated_data.pop('vehicle_vin'),
+            vehicle_capacity=validated_data.pop('vehicle_capacity'),
+            vehicle_capacity_unit=validated_data.pop('vehicle_capacity_unit'),
+            approval_status=VehicleApprovalStatus.PENDING,
+            active=False,
+        )
         user = User.objects.create_user(
             username=user_data['username'],
             email=user_data['email'],
@@ -823,10 +845,9 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
             first_name=user_data['first_name'],
             last_name=user_data['last_name'],
             is_staff=False,
-            is_superuser=False
+            is_superuser=False,
         )
-        # CIO DIRECTIVE: Create driver with user link and populate first_name/last_name
-        validated_data['first_name'] = user_data['first_name'] 
+        validated_data['first_name'] = user_data['first_name']
         validated_data['last_name'] = user_data['last_name']
         license_issuing_region = validated_data.pop('license_issuing_region')
         driver = Driver.objects.create(
@@ -836,15 +857,30 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
             active=False,
             approval_status=DriverApprovalStatus.PENDING,
         )
-        # Create vehicle
-        vehicle = Vehicle.objects.create(**vehicle_data)
-        # Create driver-vehicle assignment
-        DriverVehicle.objects.create(
-            driver=driver,
-            vehicle=vehicle,
-            assigned_from=timezone.now().date()
-        )
+        assign_vehicle_to_driver(driver, vehicle)
         return driver
+
+
+class DriverReplaceVehicleSerializer(serializers.Serializer):
+    vehicle_model_spec_id = serializers.IntegerField()
+    vehicle_year = serializers.IntegerField()
+    vehicle_license_plate = serializers.CharField(max_length=20)
+    vehicle_vin = serializers.CharField(max_length=17)
+    vehicle_capacity = serializers.IntegerField()
+    vehicle_capacity_unit = serializers.ChoiceField(choices=Vehicle.CAPACITY_UNIT_CHOICES, default='lb')
+
+
+class DriverVehicleResubmitSerializer(serializers.Serializer):
+    vehicle_model_spec_id = serializers.IntegerField()
+    vehicle_year = serializers.IntegerField()
+    vehicle_license_plate = serializers.CharField(max_length=20)
+    vehicle_vin = serializers.CharField(max_length=17)
+    vehicle_capacity = serializers.IntegerField()
+    vehicle_capacity_unit = serializers.ChoiceField(choices=Vehicle.CAPACITY_UNIT_CHOICES, default='lb')
+
+
+class VehicleResubmitRequestSerializer(serializers.Serializer):
+    resubmit_reason = serializers.CharField(max_length=2000)
 
 
 class LegalDocumentSerializer(serializers.ModelSerializer):

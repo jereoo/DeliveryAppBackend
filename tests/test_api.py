@@ -414,6 +414,7 @@ class DriverSelfServiceAPITests(APITestCase):
             capacity=1500,
             capacity_unit='kg',
             active=True,
+            approval_status='APPROVED',
         )
         from django.utils import timezone
         from delivery.models import DriverVehicle
@@ -466,11 +467,9 @@ class DriverSelfServiceAPITests(APITestCase):
             'model': 'Transit XL',
             'capacity': 1800,
         }, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['model'], 'Transit XL')
-        self.assertEqual(response.data['capacity'], 1800)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.vehicle.refresh_from_db()
-        self.assertEqual(self.vehicle.model, 'Transit XL')
+        self.assertEqual(self.vehicle.model, 'Transit')
 
     def test_driver_me_vehicle_patch_mark_inactive(self):
         response = self.client.patch('/api/drivers/me/vehicle/', {

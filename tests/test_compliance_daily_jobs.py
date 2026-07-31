@@ -49,12 +49,13 @@ class RunComplianceDailyJobsTests(TestCase):
         DEFAULT_FROM_EMAIL='noreply@test.local',
     )
     def test_run_compliance_daily_jobs_expires_and_reminds(self):
+        today = timezone.now().date()
         expired = create_document(
             self.staff,
             vehicle=self.vehicle,
             data={
                 'document_type': DocumentType.VEHICLE_REGISTRATION,
-                'expiry_date': date.today() - timedelta(days=1),
+                'expiry_date': today - timedelta(days=1),
             },
         )
         mark_verified(self.staff, expired.id)
@@ -64,7 +65,7 @@ class RunComplianceDailyJobsTests(TestCase):
             driver=self.driver,
             data={
                 'document_type': DocumentType.DRIVER_LICENSE,
-                'expiry_date': date.today() + timedelta(days=30),
+                'expiry_date': today + timedelta(days=30),
             },
         )
         mark_verified(self.staff, remind.id)

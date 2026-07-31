@@ -16,7 +16,12 @@ from rest_framework.exceptions import PermissionDenied
 from django.http import Http404
 from django.db.models import Prefetch
 from .models import Delivery, Driver, Vehicle, DriverVehicle, DeliveryAssignment, Customer, LegalDocument, VehicleManufacturer, VehicleModelSpec
-from .driver_utils import get_driver_for_user, get_driver_vehicle
+from .driver_utils import (
+    get_current_vehicle,
+    get_driver_for_user,
+    get_driver_vehicle,
+    list_driver_vehicle_history,
+)
 from .vehicle_constants import MAX_VEHICLE_CAPACITY_KG, MAX_VEHICLE_CAPACITY_LB
 from .vehicle_utils import deactivate_vehicle, reactivate_vehicle, vehicle_has_history
 from .vehicle_update import serialize_vehicle_for_user, update_vehicle, user_can_read_vehicle
@@ -24,6 +29,8 @@ from .auth_logging import log_registration_validation_failure
 from .driver_license_validation import list_license_regions
 from . import compliance_service
 from . import driver_approval_service
+from . import vehicle_approval_service
+from .vehicle_replace_service import replace_driver_vehicle
 from .compliance_permissions import (
     CanManageDriverDocuments,
     CanManageVehicleDocuments,
@@ -37,7 +44,8 @@ from .serializers import (DeliverySerializer, DriverSerializer, VehicleSerialize
                          DriverMeSerializer, DriverOwnedVehicleSerializer, LegalDocumentSerializer,
                          LegalDocumentCreateSerializer, LegalDocumentVerifySerializer,
                          LegalDocumentRejectSerializer, DriverRejectSerializer, PresignedUploadSerializer,
-                         VehicleManufacturerCatalogSerializer)
+                         VehicleManufacturerCatalogSerializer, DriverReplaceVehicleSerializer,
+                         DriverVehicleResubmitSerializer, VehicleResubmitRequestSerializer)
 
 class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all()
@@ -158,17 +166,95 @@ class DriverViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get', 'patch'], url_path='me/vehicle')
     def me_vehicle(self, request):
-        """Get or update the vehicle currently assigned to the authenticated driver."""
+        """Get or update the vehicle on the driver's current open assignment."""
         driver = get_driver_for_user(request.user)
         if not driver:
             return Response({'error': 'Driver profile not found'}, status=status.HTTP_404_NOT_FOUND)
-        vehicle = get_driver_vehicle(driver)
+        vehicle = get_current_vehicle(driver)
         if not vehicle:
             return Response({'error': 'No vehicle assigned to this driver'}, status=status.HTTP_404_NOT_FOUND)
         if request.method == 'GET':
             return Response(DriverOwnedVehicleSerializer(vehicle).data)
         vehicle = update_vehicle(request.user, vehicle, request.data, partial=True)
         return Response(serialize_vehicle_for_user(request.user, vehicle))
+
+    @action(detail=False, methods=['get', 'post'], url_path='me/vehicles')
+    def me_vehicles(self, request):
+        """GET: assignment history. POST: replace current vehicle (atomic)."""
+        driver = get_driver_for_user(request.user)
+        if not driver:
+            return Response({'error': 'Driver profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.method == 'GET':
+            rows = list_driver_vehicle_history(driver)
+            payload = []
+            for row in rows:
+                vehicle = row.vehicle
+                payload.append({
+                    'assignment': {
+                        'assigned_from': row.assigned_from,
+                        'assigned_to': row.assigned_to,
+                        'is_current': row.assigned_to is None,
+                    },
+                    'vehicle': DriverOwnedVehicleSerializer(vehicle).data if vehicle else None,
+                })
+            return Response(payload)
+
+        serializer = DriverReplaceVehicleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        new_vehicle, previous = replace_driver_vehicle(
+            driver,
+            vehicle_model_spec_id=data['vehicle_model_spec_id'],
+            vehicle_year=data['vehicle_year'],
+            vehicle_license_plate=data['vehicle_license_plate'],
+            vehicle_vin=data['vehicle_vin'],
+            vehicle_capacity=data['vehicle_capacity'],
+            vehicle_capacity_unit=data['vehicle_capacity_unit'],
+        )
+        return Response(
+            {
+                'detail': (
+                    'New vehicle submitted for admin approval. '
+                    'Upload registration and insurance documents while you wait.'
+                ),
+                'vehicle': DriverOwnedVehicleSerializer(new_vehicle).data,
+                'previous_vehicle_id': previous.id if previous else None,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=False, methods=['post'], url_path='me/vehicle/resubmit')
+    def me_vehicle_resubmit(self, request):
+        """Driver resubmits corrected vehicle data after staff RESUBMIT."""
+        driver = get_driver_for_user(request.user)
+        if not driver:
+            return Response({'error': 'Driver profile not found'}, status=status.HTTP_404_NOT_FOUND)
+        vehicle = get_current_vehicle(driver)
+        if not vehicle:
+            return Response({'error': 'No vehicle assigned to this driver'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = DriverVehicleResubmitSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        vehicle = vehicle_approval_service.driver_resubmit_vehicle(
+            request.user,
+            vehicle,
+            data={
+                'model_spec_id': data['vehicle_model_spec_id'],
+                'year': data['vehicle_year'],
+                'license_plate': data['vehicle_license_plate'],
+                'vin': data['vehicle_vin'],
+                'capacity': data['vehicle_capacity'],
+                'capacity_unit': data['vehicle_capacity_unit'],
+            },
+        )
+        return Response(
+            {
+                'detail': 'Vehicle resubmitted for admin approval.',
+                'vehicle': DriverOwnedVehicleSerializer(vehicle).data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=['post'], url_path='me/vehicle/deactivate')
     def me_vehicle_deactivate(self, request):
@@ -177,7 +263,7 @@ class DriverViewSet(viewsets.ModelViewSet):
         if not driver:
             return Response({'error': 'Driver profile not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        vehicle = get_driver_vehicle(driver)
+        vehicle = get_current_vehicle(driver)
         if not vehicle:
             return Response({'error': 'No vehicle assigned to this driver'}, status=status.HTTP_404_NOT_FOUND)
         if not vehicle.active:
@@ -424,7 +510,15 @@ class VehicleViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         self._require_staff(request)
-        return super().create(request, *args, **kwargs)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        from .models import VehicleApprovalStatus
+        extra = {}
+        if serializer.validated_data.get('active', True):
+            extra['approval_status'] = VehicleApprovalStatus.APPROVED
+        serializer.save(**extra)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def retrieve(self, request, *args, **kwargs):
         vehicle = self.get_object()
@@ -498,6 +592,28 @@ class VehicleViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+    @action(detail=True, methods=['post'], url_path='approve')
+    def approve(self, request, pk=None):
+        """Staff approves a pending or resubmitted vehicle."""
+        self._require_staff(request)
+        vehicle = self.get_object()
+        vehicle = vehicle_approval_service.approve_vehicle(request.user, vehicle)
+        return Response(VehicleSerializer(vehicle).data)
+
+    @action(detail=True, methods=['post'], url_path='resubmit')
+    def request_resubmit(self, request, pk=None):
+        """Staff sends vehicle back to driver for correction (does not edit identity fields)."""
+        self._require_staff(request)
+        vehicle = self.get_object()
+        serializer = VehicleResubmitRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vehicle = vehicle_approval_service.request_vehicle_resubmit(
+            request.user,
+            vehicle,
+            reason=serializer.validated_data['resubmit_reason'],
+        )
+        return Response(VehicleSerializer(vehicle).data)
     
     def list(self, request, *args, **kwargs):
         """Override list to include capacity unit choices for forms"""

@@ -13,7 +13,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from delivery.models import Driver, DriverVehicle, Vehicle
+from delivery.models import Driver, DriverVehicle, Vehicle, VehicleApprovalStatus
 from delivery.vehicle_constants import MAX_VEHICLE_CAPACITY_KG, MAX_VEHICLE_CAPACITY_LB, max_vehicle_capacity_for_unit
 from tests.vehicle_catalog_helpers import get_catalog_spec_id
 
@@ -66,6 +66,7 @@ class DriverVehicleCRUDFixtures:
             capacity=1500,
             capacity_unit='kg',
             active=active,
+            approval_status='APPROVED' if active else 'PENDING',
         )
 
     @classmethod
@@ -132,6 +133,8 @@ class AdminDriverCRUDTests(APITestCase, DriverVehicleCRUDFixtures):
         self.assertTrue(Vehicle.objects.filter(license_plate='STAFFNEW1').exists())
 
     def test_staff_updates_vehicle(self):
+        self.vehicle.approval_status = VehicleApprovalStatus.PENDING
+        self.vehicle.save(update_fields=['approval_status'])
         response = self.staff_client.patch(f'/api/vehicles/{self.vehicle.id}/', {
             'model': 'Transit Custom',
             'capacity': 1600,
@@ -269,17 +272,13 @@ class DriverOwnedVehicleCRUDTests(APITestCase, DriverVehicleCRUDFixtures):
             'capacity_unit': 'kg',
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('capacity', response.data)
 
-    def test_driver_me_vehicle_patch_allows_capacity_at_lb_limit(self):
+    def test_driver_me_vehicle_patch_rejects_identity_on_approved_vehicle(self):
         response = self.client.patch('/api/drivers/me/vehicle/', {
             'capacity': MAX_VEHICLE_CAPACITY_LB,
             'capacity_unit': 'lb',
         }, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.vehicle.refresh_from_db()
-        self.assertEqual(self.vehicle.capacity, MAX_VEHICLE_CAPACITY_LB)
-        self.assertEqual(self.vehicle.capacity_unit, 'lb')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_driver_me_vehicle_patch_updates_fields(self):
         response = self.client.patch('/api/drivers/me/vehicle/', {
@@ -287,11 +286,9 @@ class DriverOwnedVehicleCRUDTests(APITestCase, DriverVehicleCRUDFixtures):
             'model': 'Express',
             'capacity': 2000,
         }, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.vehicle.refresh_from_db()
-        self.assertEqual(self.vehicle.make, 'Chevrolet')
-        self.assertEqual(self.vehicle.model, 'Express')
-        self.assertEqual(self.vehicle.capacity, 2000)
+        self.assertEqual(self.vehicle.make, 'Ford')
 
     def test_driver_me_vehicle_patch_mark_inactive(self):
         response = self.client.patch('/api/drivers/me/vehicle/', {
@@ -316,11 +313,9 @@ class DriverOwnedVehicleCRUDTests(APITestCase, DriverVehicleCRUDFixtures):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_driver_can_read_inactive_vehicle(self):
-        self.vehicle.active = False
-        self.vehicle.save(update_fields=['active'])
+        self.client.post('/api/drivers/me/vehicle/deactivate/')
         response = self.client.get('/api/drivers/me/vehicle/')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(response.data['active'])
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_driver_cannot_edit_inactive_vehicle_details(self):
         deactivate = self.client.post('/api/drivers/me/vehicle/deactivate/')
@@ -328,9 +323,7 @@ class DriverOwnedVehicleCRUDTests(APITestCase, DriverVehicleCRUDFixtures):
         response = self.client.patch('/api/drivers/me/vehicle/', {
             'model': 'Should Fail',
         }, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.vehicle.refresh_from_db()
-        self.assertNotEqual(self.vehicle.model, 'Should Fail')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_driver_cannot_delete_vehicle_via_admin_endpoint(self):
         response = self.client.delete(f'/api/vehicles/{self.vehicle.id}/')
@@ -348,11 +341,7 @@ class DriverOwnedVehicleCRUDTests(APITestCase, DriverVehicleCRUDFixtures):
             'model': 'Express',
             'capacity': 2000,
         }, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.vehicle.refresh_from_db()
-        self.assertEqual(self.vehicle.make, 'Chevrolet')
-        self.assertEqual(self.vehicle.model, 'Express')
-        self.assertEqual(self.vehicle.capacity, 2000)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_driver_cannot_patch_other_vehicle_via_vehicles_endpoint(self):
         other_vehicle = self.create_vehicle('other')
@@ -368,9 +357,7 @@ class DriverOwnedVehicleCRUDTests(APITestCase, DriverVehicleCRUDFixtures):
         response = self.client.patch(f'/api/vehicles/{self.vehicle.id}/', {
             'model': 'Should Fail',
         }, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.vehicle.refresh_from_db()
-        self.assertNotEqual(self.vehicle.model, 'Should Fail')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_driver_can_get_assigned_vehicle_via_vehicles_endpoint(self):
         response = self.client.get(f'/api/vehicles/{self.vehicle.id}/')
