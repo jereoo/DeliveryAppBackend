@@ -15,7 +15,7 @@ from .compliance_constants import (
 )
 from . import compliance_storage
 from .compliance_reminder_service import clear_expiry_reminder_fields
-from .driver_utils import get_current_vehicle, get_driver_for_user, get_driver_vehicle
+from .driver_utils import get_current_vehicle, get_driver_for_user
 from .models import Driver, DriverApprovalStatus, DriverVehicle, LegalDocument, Vehicle
 
 REQUIRED_COMPLIANCE_TYPES = (
@@ -46,7 +46,7 @@ def user_can_access_vehicle(user, vehicle: Vehicle) -> bool:
     driver = get_driver_for_user(user)
     if not driver:
         return False
-    assigned = get_driver_vehicle(driver)
+    assigned = get_current_vehicle(driver)
     return assigned is not None and assigned.id == vehicle.id
 
 
@@ -126,7 +126,7 @@ def list_driver_owned_documents(driver: Driver):
 
 def list_documents_for_driver(driver: Driver):
     """All compliance docs for summary checks: driver license + assigned vehicle docs."""
-    vehicle = get_driver_vehicle(driver)
+    vehicle = get_current_vehicle(driver)
     query = Q(driver=driver)
     if vehicle:
         query |= Q(vehicle=vehicle)
@@ -183,7 +183,7 @@ def get_compliance_summary(driver: Driver) -> dict:
             if today <= doc.expiry_date <= expiring_cutoff:
                 summary['expiring_soon'] += 1
 
-    vehicle = get_driver_vehicle(driver)
+    vehicle = get_current_vehicle(driver)
     for doc_type in REQUIRED_COMPLIANCE_TYPES:
         if doc_type == DocumentType.DRIVER_LICENSE:
             has = _verified_doc_exists(docs, doc_type, driver_id=driver.id)

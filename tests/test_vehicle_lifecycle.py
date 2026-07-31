@@ -6,6 +6,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from delivery.compliance_constants import DocumentType
 from delivery.models import Driver, DriverVehicle, Vehicle, VehicleApprovalStatus
 from tests.vehicle_catalog_helpers import get_catalog_spec_id
 
@@ -96,6 +97,32 @@ class VehicleLifecycleTests(APITestCase):
         self.assertFalse(new_vehicle.active)
         self.vehicle.refresh_from_db()
         self.assertFalse(self.vehicle.active)
+
+    def test_driver_can_upload_documents_after_replace(self):
+        replace = self.driver_client.post('/api/drivers/me/vehicles/', {
+            'vehicle_model_spec_id': self.spec_id,
+            'vehicle_year': 2021,
+            'vehicle_license_plate': 'VLC004',
+            'vehicle_vin': '1VLCTESTVIN000004',
+            'vehicle_capacity': 3325,
+            'vehicle_capacity_unit': 'lb',
+        }, format='json')
+        self.assertEqual(replace.status_code, status.HTTP_201_CREATED)
+        new_id = replace.data['vehicle']['id']
+
+        doc = self.driver_client.post(
+            f'/api/vehicles/{new_id}/documents/',
+            {
+                'document_type': DocumentType.VEHICLE_REGISTRATION,
+                'issuer': 'DMV',
+                'policy_number': 'REG-004',
+                'expiry_date': '2027-02-15',
+                'notes': 'replacement vehicle',
+            },
+            format='json',
+        )
+        self.assertEqual(doc.status_code, status.HTTP_201_CREATED, doc.data)
+        self.assertEqual(doc.data['vehicle'], new_id)
 
     def test_dispatch_blocked_for_pending_vehicle(self):
         pending = Vehicle.objects.create(
