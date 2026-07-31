@@ -266,6 +266,25 @@ class ComplianceServiceTests(TestCase):
         with self.assertRaises(PermissionDenied):
             update_document(self.driver_user, doc, {'issuer': 'Changed'})
 
+    def test_driver_cannot_update_rejected_document_to_pending_without_changes(self):
+        doc = create_document(
+            self.driver_user,
+            driver=self.driver,
+            data={
+                'document_type': DocumentType.DRIVER_LICENSE,
+                'issuer': 'DMV',
+                'expiry_date': date.today() + timedelta(days=365),
+            },
+        )
+        mark_rejected(self.staff, doc.id, reason='Fix scan quality')
+        updated = update_document(
+            self.driver_user,
+            doc,
+            {'issuer': 'California DMV'},
+        )
+        self.assertEqual(updated.status, DocumentStatus.PENDING)
+        self.assertIsNone(updated.rejection_reason)
+
     def test_create_document_rejects_foreign_file_key(self):
         with self.assertRaises(Exception):
             create_document(
@@ -478,6 +497,101 @@ class ComplianceAPITests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], DocumentStatus.REJECTED)
+
+    def test_driver_can_upload_replacement_after_document_rejected(self):
+        create_resp = self.driver_client.post(
+            f'/api/drivers/{self.driver.id}/documents/',
+            {
+                'document_type': DocumentType.DRIVER_LICENSE,
+                'issuer': 'DMV',
+                'expiry_date': str(date.today() + timedelta(days=365)),
+            },
+            format='json',
+        )
+        doc_id = create_resp.data['id']
+        reject = self.staff_client.post(
+            f'/api/documents/{doc_id}/reject/',
+            {'rejection_reason': 'Blurry photo'},
+            format='json',
+        )
+        self.assertEqual(reject.status_code, status.HTTP_200_OK)
+
+        replacement = self.driver_client.post(
+            f'/api/drivers/{self.driver.id}/documents/',
+            {
+                'document_type': DocumentType.DRIVER_LICENSE,
+                'issuer': 'DMV',
+                'expiry_date': str(date.today() + timedelta(days=400)),
+            },
+            format='json',
+        )
+        self.assertEqual(replacement.status_code, status.HTTP_201_CREATED, replacement.data)
+        self.assertEqual(replacement.data['status'], DocumentStatus.PENDING)
+
+        vehicle_reject = self.driver_client.post(
+            f'/api/vehicles/{self.vehicle.id}/documents/',
+            {
+                'document_type': DocumentType.VEHICLE_REGISTRATION,
+                'issuer': 'DMV',
+                'policy_number': 'REG-OLD',
+                'expiry_date': str(date.today() + timedelta(days=180)),
+            },
+            format='json',
+        )
+        self.assertEqual(vehicle_reject.status_code, status.HTTP_201_CREATED)
+        rejected_vehicle_doc_id = vehicle_reject.data['id']
+        self.staff_client.post(
+            f'/api/documents/{rejected_vehicle_doc_id}/reject/',
+            {'rejection_reason': 'Wrong year on registration'},
+            format='json',
+        )
+
+        vehicle_replacement = self.driver_client.post(
+            f'/api/vehicles/{self.vehicle.id}/documents/',
+            {
+                'document_type': DocumentType.VEHICLE_REGISTRATION,
+                'issuer': 'DMV',
+                'policy_number': 'REG-NEW',
+                'expiry_date': str(date.today() + timedelta(days=200)),
+            },
+            format='json',
+        )
+        self.assertEqual(vehicle_replacement.status_code, status.HTTP_201_CREATED, vehicle_replacement.data)
+
+        inbox = self.staff_client.get('/api/compliance/admin/inbox/')
+        self.assertEqual(inbox.status_code, status.HTTP_200_OK)
+        pending_ids = {row['document_id'] for row in inbox.data}
+        self.assertIn(replacement.data['id'], pending_ids)
+        self.assertIn(vehicle_replacement.data['id'], pending_ids)
+
+    def test_driver_can_resubmit_rejected_document_via_patch(self):
+        create_resp = self.driver_client.post(
+            f'/api/drivers/{self.driver.id}/documents/',
+            {
+                'document_type': DocumentType.DRIVER_LICENSE,
+                'issuer': 'Old DMV',
+                'expiry_date': str(date.today() + timedelta(days=365)),
+            },
+            format='json',
+        )
+        doc_id = create_resp.data['id']
+        self.staff_client.post(
+            f'/api/documents/{doc_id}/reject/',
+            {'rejection_reason': 'Fix issuer spelling'},
+            format='json',
+        )
+
+        response = self.driver_client.patch(
+            f'/api/documents/{doc_id}/',
+            {
+                'issuer': 'California DMV',
+                'expiry_date': str(date.today() + timedelta(days=500)),
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data['status'], DocumentStatus.PENDING)
+        self.assertIsNone(response.data['rejection_reason'])
 
     def test_driver_compliance_status(self):
         response = self.driver_client.get('/api/drivers/me/compliance-status/')

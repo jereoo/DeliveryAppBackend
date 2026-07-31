@@ -203,8 +203,14 @@ def get_compliance_summary(driver: Driver) -> dict:
 def update_document(user, document: LegalDocument, data: dict) -> LegalDocument:
     if not user_can_access_document(user, document):
         raise NotFound()
-    if not user.is_staff and document.status != DocumentStatus.PENDING:
-        raise PermissionDenied('Only pending documents can be edited.')
+    resubmitting_rejected = (
+        not user.is_staff and document.status == DocumentStatus.REJECTED
+    )
+    if not user.is_staff and document.status not in (
+        DocumentStatus.PENDING,
+        DocumentStatus.REJECTED,
+    ):
+        raise PermissionDenied('Only pending or rejected documents can be edited.')
 
     editable = (
         'policy_number', 'issuer', 'coverage_type', 'effective_date',
@@ -215,6 +221,12 @@ def update_document(user, document: LegalDocument, data: dict) -> LegalDocument:
             setattr(document, field, data[field])
     if 'file_key' in data:
         compliance_storage.assert_file_key_owned_by_user(user.id, document.file_key)
+    if resubmitting_rejected:
+        document.status = DocumentStatus.PENDING
+        document.rejection_reason = None
+        document.verified_by = None
+        document.verified_at = None
+        clear_expiry_reminder_fields(document)
     document.full_clean()
     document.save()
     return document
