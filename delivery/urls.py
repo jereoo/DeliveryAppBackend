@@ -1,6 +1,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from delivery.views_auth import LoggingTokenObtainPairView
+from delivery.views_me import CurrentUserView
 from .views import (
     DeliveryViewSet, DriverViewSet, VehicleViewSet, DriverVehicleViewSet,
     DeliveryAssignmentViewSet, CustomerViewSet, LegalDocumentViewSet,
@@ -23,6 +24,7 @@ router.register(r'compliance/admin', ComplianceAdminViewSet, basename='complianc
 urlpatterns = [
     path('token/', LoggingTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('me/', CurrentUserView.as_view(), name='current_user'),
 ]
 
 urlpatterns += router.urls
