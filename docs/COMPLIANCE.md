@@ -185,6 +185,8 @@ This application aids **record-keeping and operational visibility**. It is not l
 
 | Doc | Purpose |
 |-----|---------|
+| `DeliveryApp/project-docs/USE_CASES.md` | Business use cases (UC-05–UC-10, compliance gate) |
 | `DeliveryAppMobile/docs/PHASE_4A_LEGAL_COMPLIANCE.md` | Full technical spec |
 | `DeliveryAppMobile/docs/PROJECT_PLAN.md` | Roadmap |
 | `.cursor/rules/layered-architecture.mdc` | Layer boundaries |
+| `.cursor/rules/use-cases.mdc` | Agent pointer to USE_CASES |

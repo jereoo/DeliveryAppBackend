@@ -77,6 +77,20 @@ def get_document_or_404(document_id: int) -> LegalDocument:
         raise NotFound() from exc
 
 
+def _pending_documents_for_subject(*, doc_type: str, driver=None, vehicle=None):
+    qs = LegalDocument.objects.filter(
+        document_type=doc_type,
+        status=DocumentStatus.PENDING,
+    )
+    if driver is not None:
+        qs = qs.filter(driver=driver, vehicle__isnull=True)
+    elif vehicle is not None:
+        qs = qs.filter(vehicle=vehicle, driver__isnull=True)
+    else:
+        return LegalDocument.objects.none()
+    return qs
+
+
 def create_document(user, *, driver=None, vehicle=None, data: dict) -> LegalDocument:
     doc_type = data.get('document_type')
     if not doc_type:
@@ -96,6 +110,18 @@ def create_document(user, *, driver=None, vehicle=None, data: dict) -> LegalDocu
         subject_vehicle = vehicle
     else:
         raise ValidationError({'document_type': 'Invalid document type.'})
+
+    if _pending_documents_for_subject(
+        doc_type=doc_type,
+        driver=subject_driver,
+        vehicle=subject_vehicle,
+    ).exists():
+        raise ValidationError({
+            'detail': (
+                'A pending document of this type is already awaiting review. '
+                'Update that submission or wait for admin approval.'
+            ),
+        })
 
     file_key = data.get('file_key')
     compliance_storage.assert_file_key_owned_by_user(user.id, file_key)
@@ -222,6 +248,18 @@ def update_document(user, document: LegalDocument, data: dict) -> LegalDocument:
     if 'file_key' in data:
         compliance_storage.assert_file_key_owned_by_user(user.id, document.file_key)
     if resubmitting_rejected:
+        other_pending = _pending_documents_for_subject(
+            doc_type=document.document_type,
+            driver=document.driver if document.driver_id else None,
+            vehicle=document.vehicle if document.vehicle_id else None,
+        ).exclude(pk=document.pk)
+        if other_pending.exists():
+            raise ValidationError({
+                'detail': (
+                    'Another pending document of this type is already awaiting review. '
+                    'Wait for admin approval or contact support.'
+                ),
+            })
         document.status = DocumentStatus.PENDING
         document.rejection_reason = None
         document.verified_by = None
@@ -265,11 +303,36 @@ def _expire_superseded_verified(document: LegalDocument):
     qs.update(status=DocumentStatus.EXPIRED)
 
 
+def _reject_superseded_pending(document: LegalDocument):
+    """When one pending doc is approved, reject other pending rows of the same type/subject."""
+    if document.document_type not in (
+        DocumentType.COMMERCIAL_INSURANCE,
+        DocumentType.VEHICLE_REGISTRATION,
+        DocumentType.DRIVER_LICENSE,
+    ):
+        return
+    qs = _pending_documents_for_subject(
+        doc_type=document.document_type,
+        driver=document.driver if document.driver_id else None,
+        vehicle=document.vehicle if document.vehicle_id else None,
+    ).exclude(pk=document.pk)
+    if not qs.exists():
+        return
+    qs.update(
+        status=DocumentStatus.REJECTED,
+        rejection_reason='Superseded by an approved submission of the same document type.',
+    )
+
+
 def mark_verified(staff_user, document_id: int, notes=None) -> LegalDocument:
     if not staff_user.is_staff:
         raise PermissionDenied('Only staff can verify documents.')
 
     document = get_document_or_404(document_id)
+    if document.status != DocumentStatus.PENDING:
+        raise ValidationError({
+            'status': f'Only pending documents can be approved (current status: {document.status}).',
+        })
     _require_expiry_for_verify(document)
 
     if document.document_type == DocumentType.COMMERCIAL_INSURANCE:
@@ -288,6 +351,7 @@ def mark_verified(staff_user, document_id: int, notes=None) -> LegalDocument:
     if notes is not None:
         document.notes = notes
     document.save()
+    _reject_superseded_pending(document)
     return document
 
 

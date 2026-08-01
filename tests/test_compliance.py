@@ -593,6 +593,154 @@ class ComplianceAPITests(APITestCase):
         self.assertEqual(response.data['status'], DocumentStatus.PENDING)
         self.assertIsNone(response.data['rejection_reason'])
 
+    def test_staff_verifies_after_driver_resubmit_rejected_document(self):
+        create_resp = self.driver_client.post(
+            f'/api/drivers/{self.driver.id}/documents/',
+            {
+                'document_type': DocumentType.DRIVER_LICENSE,
+                'issuer': 'ICBC',
+                'expiry_date': '2027-12-18',
+                'file_name': 'driver_license_sample.pdf',
+            },
+            format='json',
+        )
+        doc_id = create_resp.data['id']
+        reject = self.staff_client.post(
+            f'/api/documents/{doc_id}/reject/',
+            {'rejection_reason': 'Please resubmit with clearer scan'},
+            format='json',
+        )
+        self.assertEqual(reject.status_code, status.HTTP_200_OK)
+
+        resubmit = self.driver_client.patch(
+            f'/api/documents/{doc_id}/',
+            {
+                'issuer': 'ICBC',
+                'expiry_date': '2027-12-18',
+                'file_name': 'driver_license_sample.pdf',
+            },
+            format='json',
+        )
+        self.assertEqual(resubmit.status_code, status.HTTP_200_OK, resubmit.data)
+        self.assertEqual(resubmit.data['status'], DocumentStatus.PENDING)
+
+        inbox_before = self.staff_client.get('/api/compliance/admin/inbox/')
+        self.assertEqual(inbox_before.status_code, status.HTTP_200_OK)
+        pending_ids = {row['document_id'] for row in inbox_before.data}
+        self.assertIn(doc_id, pending_ids)
+
+        verify = self.staff_client.post(
+            f'/api/documents/{doc_id}/verify/',
+            {'notes': ''},
+            format='json',
+        )
+        self.assertEqual(verify.status_code, status.HTTP_200_OK, verify.data)
+        self.assertEqual(verify.data['status'], DocumentStatus.VERIFIED)
+
+        inbox_after = self.staff_client.get('/api/compliance/admin/inbox/')
+        self.assertEqual(inbox_after.status_code, status.HTTP_200_OK)
+        pending_ids_after = {row['document_id'] for row in inbox_after.data}
+        self.assertNotIn(doc_id, pending_ids_after)
+
+        driver_list = self.driver_client.get(f'/api/drivers/{self.driver.id}/documents/')
+        self.assertEqual(driver_list.status_code, status.HTTP_200_OK)
+        doc_row = next(row for row in driver_list.data if row['id'] == doc_id)
+        self.assertEqual(doc_row['status'], DocumentStatus.VERIFIED)
+
+    def test_cannot_create_duplicate_pending_document(self):
+        create_resp = self.driver_client.post(
+            f'/api/drivers/{self.driver.id}/documents/',
+            {
+                'document_type': DocumentType.DRIVER_LICENSE,
+                'issuer': 'ICBC',
+                'expiry_date': str(date.today() + timedelta(days=365)),
+            },
+            format='json',
+        )
+        self.assertEqual(create_resp.status_code, status.HTTP_201_CREATED)
+
+        duplicate = self.driver_client.post(
+            f'/api/drivers/{self.driver.id}/documents/',
+            {
+                'document_type': DocumentType.DRIVER_LICENSE,
+                'issuer': 'ICBC',
+                'expiry_date': str(date.today() + timedelta(days=400)),
+            },
+            format='json',
+        )
+        self.assertEqual(duplicate.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_verify_rejects_other_pending_documents_of_same_type(self):
+        doc1 = self.driver_client.post(
+            f'/api/drivers/{self.driver.id}/documents/',
+            {
+                'document_type': DocumentType.DRIVER_LICENSE,
+                'issuer': 'ICBC',
+                'expiry_date': str(date.today() + timedelta(days=365)),
+            },
+            format='json',
+        )
+        doc1_id = doc1.data['id']
+
+        doc2 = LegalDocument.objects.create(
+            document_type=DocumentType.DRIVER_LICENSE,
+            driver=self.driver,
+            issuer='ICBC',
+            expiry_date=date.today() + timedelta(days=500),
+            status=DocumentStatus.PENDING,
+            file_name='driver_license_resubmit.pdf',
+        )
+        doc2_id = doc2.id
+
+        verify = self.staff_client.post(
+            f'/api/documents/{doc2_id}/verify/',
+            {'notes': ''},
+            format='json',
+        )
+        self.assertEqual(verify.status_code, status.HTTP_200_OK, verify.data)
+
+        doc1_row = LegalDocument.objects.get(pk=doc1_id)
+        doc2_row = LegalDocument.objects.get(pk=doc2_id)
+        self.assertEqual(doc2_row.status, DocumentStatus.VERIFIED)
+        self.assertEqual(doc1_row.status, DocumentStatus.REJECTED)
+
+        driver_list = self.driver_client.get(f'/api/drivers/{self.driver.id}/documents/')
+        pending_rows = [row for row in driver_list.data if row['status'] == DocumentStatus.PENDING]
+        self.assertEqual(pending_rows, [])
+
+    def test_resubmit_blocked_when_another_pending_exists(self):
+        doc1 = self.driver_client.post(
+            f'/api/drivers/{self.driver.id}/documents/',
+            {
+                'document_type': DocumentType.DRIVER_LICENSE,
+                'issuer': 'ICBC',
+                'expiry_date': str(date.today() + timedelta(days=365)),
+            },
+            format='json',
+        )
+        doc1_id = doc1.data['id']
+        self.staff_client.post(
+            f'/api/documents/{doc1_id}/reject/',
+            {'rejection_reason': 'Fix scan quality'},
+            format='json',
+        )
+
+        doc2 = LegalDocument.objects.create(
+            document_type=DocumentType.DRIVER_LICENSE,
+            driver=self.driver,
+            issuer='ICBC',
+            expiry_date=date.today() + timedelta(days=500),
+            status=DocumentStatus.PENDING,
+        )
+
+        resubmit = self.driver_client.patch(
+            f'/api/documents/{doc1_id}/',
+            {'issuer': 'ICBC', 'expiry_date': str(date.today() + timedelta(days=450))},
+            format='json',
+        )
+        self.assertEqual(resubmit.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(LegalDocument.objects.get(pk=doc2.id).status, DocumentStatus.PENDING)
+
     def test_driver_compliance_status(self):
         response = self.driver_client.get('/api/drivers/me/compliance-status/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
