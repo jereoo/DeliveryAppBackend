@@ -1,8 +1,12 @@
-# Release 2.0.0 — Architecture Refactor (API)
+# Release 1.1.0 — Architecture Refactor (API, semver MINOR)
 
 **Date:** August 1, 2026  
 **Heroku app:** `truck-buddy`  
-**Health check:** `GET /api/health/` → `"version": "2.0.0"`
+**Health check:** `GET /api/health/` → `"version": "1.1.0"`
+
+**Semver:** `1.0.0` → `1.1.0` — internal architecture improvements and additive `/api/me/`; **no breaking API or database contract changes**. Product scope remains **v1.0** (not commercial multi-tenant v2.0).
+
+> **Note:** Tag `release/2.0.0` was applied briefly but corrected — `2.0.0` implied breaking changes incorrectly.
 
 ---
 
@@ -25,14 +29,14 @@ git push origin main --force   # only if you intentionally roll back production
 
 ---
 
-## Phase A (already deployed before 2.0.0)
+## Phase A
 
 - `GET /api/me/` — server-authoritative role (`admin` | `customer` | `driver`)
 - Frontend: `authService`, extracted services, screens, theme (mobile repo)
 
 ---
 
-## Phase B (this release — backend)
+## Phase B (backend)
 
 - **`delivery/permissions.py`** — DRF permission classes + queryset scoping helpers
 - **ViewSets migrated** — Customer, Delivery, Driver, DriverVehicle, DeliveryAssignment
@@ -47,15 +51,9 @@ git push origin main --force   # only if you intentionally roll back production
 ```powershell
 cd C:\Users\360WEB\DeliveryAppBackend
 Invoke-RestMethod -Uri "https://truck-buddy-f14f250ae8b3.herokuapp.com/api/health/"
-# Expect version 2.0.0 + release_note
+# Expect version 1.1.0 + release_note
 
 $env:ADMIN_USERNAME = "admin"
 $env:ADMIN_PASSWORD = "<Heroku ADMIN_PASSWORD>"
 .\scripts\production-smoke-test.ps1
 ```
-
----
-
-## Product scope unchanged
-
-Still **v1.0 product** (single fleet, admin/driver/customer). Version **2.0.0** marks **API/architecture** maturity, not commercial multi-tenant v2.0.

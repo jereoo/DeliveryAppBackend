@@ -23,10 +23,10 @@ def health_check(request):
     return JsonResponse({
         'status': 'ok',
         'message': 'DeliveryApp API is running!',
-        'version': '2.0.0',
+        'version': '1.1.0',
         'release_note': (
-            'Architecture refactor: Phase A (GET /api/me/) + Phase B '
-            '(permissions.py, registration services, DriverVehicle scoping). '
+            'Semver MINOR: backward-compatible architecture refactor (Phase A GET /api/me/, '
+            'Phase B permissions and registration services). '
             'Revert baseline: git tag checkpoint/pre-phase-b.'
         ),
     })
