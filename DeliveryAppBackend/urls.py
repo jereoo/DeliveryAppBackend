@@ -23,7 +23,12 @@ def health_check(request):
     return JsonResponse({
         'status': 'ok',
         'message': 'DeliveryApp API is running!',
-        'version': '1.0.0'
+        'version': '2.0.0',
+        'release_note': (
+            'Architecture refactor: Phase A (GET /api/me/) + Phase B '
+            '(permissions.py, registration services, DriverVehicle scoping). '
+            'Revert baseline: git tag checkpoint/pre-phase-b.'
+        ),
     })
 
 urlpatterns = [

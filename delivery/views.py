@@ -38,6 +38,17 @@ from .compliance_permissions import (
     IsStaffOrDocumentOwner,
     IsStaffUser,
 )
+from .permissions import (
+    CanManageCustomer,
+    CanManageDelivery,
+    CanManageDeliveryAssignment,
+    CanManageDriver,
+    CanManageDriverVehicleAssignment,
+    scope_customer_queryset,
+    scope_delivery_queryset,
+    scope_driver_queryset,
+    scope_driver_vehicle_queryset,
+)
 from .serializers import (DeliverySerializer, DriverSerializer, VehicleSerializer, DriverVehicleSerializer, 
                          DeliveryAssignmentSerializer, DriverWithVehicleSerializer, CustomerSerializer, 
                          CustomerRegistrationSerializer, DeliveryCreateSerializer, DriverRegistrationSerializer,
@@ -50,13 +61,10 @@ from .serializers import (DeliverySerializer, DriverSerializer, VehicleSerialize
 class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all()
     serializer_class = CustomerSerializer
-    permission_classes = [IsAuthenticated]
-    
+    permission_classes = [IsAuthenticated, CanManageCustomer]
+
     def get_queryset(self):
-        # Customers can only see their own profile, staff can see all
-        if self.request.user.is_staff:
-            return Customer.objects.all()
-        return Customer.objects.filter(user=self.request.user)
+        return scope_customer_queryset(self.request.user)
     
     @action(detail=False, methods=['post'], permission_classes=[])
     def register(self, request):
@@ -95,22 +103,15 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
 class DeliveryViewSet(viewsets.ModelViewSet):
     queryset = Delivery.objects.all()
-    permission_classes = [IsAuthenticated]
-    
+    permission_classes = [IsAuthenticated, CanManageDelivery]
+
     def get_serializer_class(self):
         if self.action == 'create' and not self.request.user.is_staff:
             return DeliveryCreateSerializer
         return DeliverySerializer
-    
+
     def get_queryset(self):
-        # Customers can only see their own deliveries, staff can see all
-        if self.request.user.is_staff:
-            return Delivery.objects.all()
-        try:
-            customer = self.request.user.customer_profile
-            return Delivery.objects.filter(customer=customer)
-        except Customer.DoesNotExist:
-            return Delivery.objects.none()
+        return scope_delivery_queryset(self.request.user)
     
     @action(detail=False, methods=['post'])
     def request_delivery(self, request):
@@ -134,22 +135,10 @@ class DeliveryViewSet(viewsets.ModelViewSet):
 class DriverViewSet(viewsets.ModelViewSet):
     queryset = Driver.objects.all()
     serializer_class = DriverSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageDriver]
 
     def get_queryset(self):
-        if self.request.user.is_staff:
-            return Driver.objects.all()
-        return Driver.objects.filter(user=self.request.user)
-
-    def create(self, request, *args, **kwargs):
-        if not request.user.is_staff:
-            raise PermissionDenied('Only staff can create drivers via this endpoint. Use /drivers/register/.')
-        return super().create(request, *args, **kwargs)
-
-    def destroy(self, request, *args, **kwargs):
-        if not request.user.is_staff:
-            raise PermissionDenied('Only staff can delete drivers.')
-        return super().destroy(request, *args, **kwargs)
+        return scope_driver_queryset(self.request.user)
 
     @action(detail=False, methods=['get', 'patch'])
     def me(self, request):
@@ -473,8 +462,6 @@ class DriverViewSet(viewsets.ModelViewSet):
     )
     def approve(self, request, pk=None):
         """Staff approves a self-registered driver (Phase 4 — registration gate)."""
-        if not request.user.is_staff:
-            raise PermissionDenied('Only staff may approve drivers.')
         driver = self.get_object()
         driver = driver_approval_service.approve_driver(request.user, driver)
         return Response(DriverSerializer(driver).data)
@@ -486,8 +473,6 @@ class DriverViewSet(viewsets.ModelViewSet):
     )
     def reject(self, request, pk=None):
         """Staff rejects a pending driver registration."""
-        if not request.user.is_staff:
-            raise PermissionDenied('Only staff may reject drivers.')
         driver = self.get_object()
         serializer = DriverRejectSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -664,29 +649,26 @@ class VehicleViewSet(viewsets.ModelViewSet):
 class DriverVehicleViewSet(viewsets.ModelViewSet):
     queryset = DriverVehicle.objects.all()
     serializer_class = DriverVehicleSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageDriverVehicleAssignment]
+
+    def get_queryset(self):
+        return scope_driver_vehicle_queryset(self.request.user)
 
 
 class DeliveryAssignmentViewSet(viewsets.ModelViewSet):
     queryset = DeliveryAssignment.objects.all()
     serializer_class = DeliveryAssignmentSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageDeliveryAssignment]
 
     def perform_create(self, serializer):
-        if not self.request.user.is_staff:
-            raise PermissionDenied('Only staff may create delivery assignments.')
         serializer.save()
 
     def perform_update(self, serializer):
-        if not self.request.user.is_staff:
-            raise PermissionDenied('Only staff may update delivery assignments.')
         if 'driver' in serializer.validated_data:
             compliance_service.assert_driver_eligible_for_dispatch(serializer.validated_data['driver'])
         serializer.save()
 
     def perform_destroy(self, instance):
-        if not self.request.user.is_staff:
-            raise PermissionDenied('Only staff may delete delivery assignments.')
         instance.delete()
 
 

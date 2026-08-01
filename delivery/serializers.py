@@ -65,21 +65,9 @@ class CustomerSerializer(serializers.ModelSerializer):
         return digits
     
     def create(self, validated_data):
-        # Extract user data from validated_data
-        user_data = validated_data.pop('user')
-        # CIO DIRECTIVE NOV 30 2025 – Use create_user to prevent accidental admin creation
-        user = User.objects.create_user(
-            username=user_data.get('username'),
-            email=user_data.get('email'),
-            first_name=user_data.get('first_name', ''),
-            last_name=user_data.get('last_name', ''),
-            password=user_data.get('password'),
-            is_staff=False,
-            is_superuser=False
-        )
-        # Create the Customer instance
-        customer = Customer.objects.create(user=user, **validated_data)
-        return customer
+        from .registration_service import create_customer_as_staff
+
+        return create_customer_as_staff(validated_data)
 
     def update(self, instance, validated_data):
         # Extract user data
@@ -160,26 +148,9 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
         return data
     
     def create(self, validated_data):
-        user_data = validated_data.pop('user')
-        
-        # Create User
-        # CIO DIRECTIVE NOV 30 2025 – Customers must never be created as admins
-        user = User.objects.create_user(
-            username=user_data['username'],
-            email=user_data['email'],
-            password=user_data['password'],
-            first_name=user_data.get('first_name', ''),
-            last_name=user_data.get('last_name', ''),
-            is_active=True,  # Fix: Ensure user account is active for login
-            is_staff=False,
-            is_superuser=False
-        )
-        
-        # Create Customer profile (skip model validation since we already validated)
-        customer = Customer(**validated_data)
-        customer.user = user
-        customer.save(validate=False)
-        return customer
+        from .registration_service import register_customer
+
+        return register_customer(validated_data)
 
 
 class DeliverySerializer(serializers.ModelSerializer):
@@ -821,44 +792,9 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
         return value.upper()
     
     def create(self, validated_data):
-        from .vehicle_onboarding_service import assign_vehicle_to_driver, create_vehicle_from_catalog
+        from .registration_service import register_driver
 
-        validated_data.pop('full_name', None)
-        user_data = validated_data.pop('user')
-        vehicle_year = validated_data.pop('vehicle_year')
-        validated_data.pop('_vehicle_model_spec', None)
-        spec_id = validated_data.pop('vehicle_model_spec_id')
-        vehicle = create_vehicle_from_catalog(
-            vehicle_model_spec_id=spec_id,
-            vehicle_year=vehicle_year,
-            vehicle_license_plate=validated_data.pop('vehicle_license_plate'),
-            vehicle_vin=validated_data.pop('vehicle_vin'),
-            vehicle_capacity=validated_data.pop('vehicle_capacity'),
-            vehicle_capacity_unit=validated_data.pop('vehicle_capacity_unit'),
-            approval_status=VehicleApprovalStatus.PENDING,
-            active=False,
-        )
-        user = User.objects.create_user(
-            username=user_data['username'],
-            email=user_data['email'],
-            password=user_data['password'],
-            first_name=user_data['first_name'],
-            last_name=user_data['last_name'],
-            is_staff=False,
-            is_superuser=False,
-        )
-        validated_data['first_name'] = user_data['first_name']
-        validated_data['last_name'] = user_data['last_name']
-        license_issuing_region = validated_data.pop('license_issuing_region')
-        driver = Driver.objects.create(
-            user=user,
-            **validated_data,
-            license_issuing_region=license_issuing_region,
-            active=False,
-            approval_status=DriverApprovalStatus.PENDING,
-        )
-        assign_vehicle_to_driver(driver, vehicle)
-        return driver
+        return register_driver(validated_data)
 
 
 class DriverReplaceVehicleSerializer(serializers.Serializer):
