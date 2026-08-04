@@ -51,12 +51,13 @@ from .permissions import (
 )
 from .serializers import (DeliverySerializer, DriverSerializer, VehicleSerializer, DriverVehicleSerializer, 
                          DeliveryAssignmentSerializer, DriverWithVehicleSerializer, CustomerSerializer, 
-                         CustomerRegistrationSerializer, DeliveryCreateSerializer, DriverRegistrationSerializer,
+                         CustomerRegistrationSerializer, CustomerMeSerializer, DeliveryCreateSerializer, DriverRegistrationSerializer,
                          DriverMeSerializer, DriverOwnedVehicleSerializer, LegalDocumentSerializer,
                          LegalDocumentCreateSerializer, LegalDocumentVerifySerializer,
                          LegalDocumentRejectSerializer, DriverRejectSerializer, PresignedUploadSerializer,
                          VehicleManufacturerCatalogSerializer, DriverReplaceVehicleSerializer,
-                         DriverVehicleResubmitSerializer, VehicleResubmitRequestSerializer)
+                         DriverVehicleResubmitSerializer, VehicleResubmitRequestSerializer,
+                         StaffDriverCreateSerializer)
 
 class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all()
@@ -79,15 +80,20 @@ class CustomerViewSet(viewsets.ModelViewSet):
         log_registration_validation_failure(request, 'customer', serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get', 'patch'])
     def me(self, request):
-        """Get current user's customer profile"""
+        """Get or update current user's customer profile."""
         try:
             customer = request.user.customer_profile
-            serializer = CustomerSerializer(customer)
-            return Response(serializer.data)
         except Customer.DoesNotExist:
             return Response({'error': 'Customer profile not found'}, status=status.HTTP_404_NOT_FOUND)
+        if request.method == 'GET':
+            serializer = CustomerSerializer(customer)
+            return Response(serializer.data)
+        serializer = CustomerMeSerializer(customer, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(CustomerSerializer(customer).data)
     
     @action(detail=False, methods=['get'])
     def my_deliveries(self, request):
@@ -131,11 +137,35 @@ class DeliveryViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """Customer or staff cancels a pending delivery."""
+        delivery = self.get_object()
+        if not request.user.is_staff:
+            try:
+                if delivery.customer_id != request.user.customer_profile.id:
+                    raise PermissionDenied('You can only cancel your own deliveries.')
+            except Customer.DoesNotExist:
+                raise PermissionDenied('Customer profile required.')
+        if delivery.status != 'Pending':
+            return Response(
+                {'error': 'Only pending deliveries can be cancelled.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        delivery.status = 'Cancelled'
+        delivery.save(update_fields=['status', 'updated_at'])
+        return Response(DeliverySerializer(delivery).data)
+
 
 class DriverViewSet(viewsets.ModelViewSet):
     queryset = Driver.objects.all()
     serializer_class = DriverSerializer
     permission_classes = [IsAuthenticated, CanManageDriver]
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return StaffDriverCreateSerializer
+        return DriverSerializer
 
     def get_queryset(self):
         return scope_driver_queryset(self.request.user)

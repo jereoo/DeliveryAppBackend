@@ -82,16 +82,18 @@ class CanManageDelivery(BasePermission):
     def has_permission(self, request, view):
         if not (request.user and request.user.is_authenticated):
             return False
-        if view.action in ('create', 'update', 'partial_update', 'destroy'):
+        if view.action in ('create', 'destroy'):
             return request.user.is_staff
         if view.action == 'request_delivery':
             return user_has_customer_profile(request.user)
+        if view.action == 'cancel':
+            return request.user.is_staff or user_has_customer_profile(request.user)
         return True
 
     def has_object_permission(self, request, view, obj):
         if request.user.is_staff:
             return True
-        if view.action in ('retrieve',):
+        if view.action in ('retrieve', 'cancel'):
             try:
                 return obj.customer_id == request.user.customer_profile.id
             except Customer.DoesNotExist:

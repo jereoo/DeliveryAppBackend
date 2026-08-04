@@ -153,6 +153,79 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
         return register_customer(validated_data)
 
 
+class CustomerMeSerializer(serializers.ModelSerializer):
+    """Self-service customer profile (no username/active changes)."""
+
+    email = serializers.EmailField(source='user.email', required=False)
+    first_name = serializers.CharField(source='user.first_name', required=False)
+    last_name = serializers.CharField(source='user.last_name', required=False)
+    full_name = serializers.SerializerMethodField(read_only=True)
+    full_address = serializers.CharField(read_only=True)
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True, min_length=8)
+
+    class Meta:
+        model = Customer
+        fields = [
+            'id', 'email', 'first_name', 'last_name', 'full_name',
+            'phone_number',
+            'address_unit', 'address_street', 'address_city', 'address_state',
+            'address_postal_code', 'address_country', 'full_address',
+            'company_name', 'is_business', 'preferred_pickup_address', 'password',
+        ]
+
+    def get_full_name(self, obj):
+        return obj.user.get_full_name()
+
+    def validate_phone_number(self, value):
+        import re
+        digits = re.sub(r'\D', '', value or '')
+        if len(digits) != 10:
+            raise serializers.ValidationError(
+                'Phone must be exactly 10 digits (North America, no area code).'
+            )
+        return digits
+
+    def validate(self, data):
+        import re
+
+        postal_code = data.get('address_postal_code')
+        country = data.get('address_country')
+        if postal_code and country:
+            postal_code = postal_code.strip().upper()
+            if country == 'CA':
+                canadian_pattern = r'^[A-Z]\d[A-Z]\s*\d[A-Z]\d$'
+                if not re.match(canadian_pattern, postal_code):
+                    raise serializers.ValidationError({
+                        'address_postal_code': 'Canadian postal codes must be in the format A1A 1A1 or A1A1A1 (e.g., K1A 0A6)'
+                    })
+            elif country == 'US':
+                us_pattern = r'^\d{5}(-\d{4})?$'
+                if not re.match(us_pattern, postal_code):
+                    raise serializers.ValidationError({
+                        'address_postal_code': 'US ZIP codes must be in the format 12345 or 12345-1234'
+                    })
+        return data
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop('user', {})
+        password = validated_data.pop('password', None)
+        user = instance.user
+        if user_data or password:
+            if 'email' in user_data:
+                user.email = user_data['email']
+            if 'first_name' in user_data:
+                user.first_name = user_data['first_name']
+            if 'last_name' in user_data:
+                user.last_name = user_data['last_name']
+            if password:
+                user.set_password(password)
+            user.save()
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+
+
 class DeliverySerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.display_name', read_only=True)
     customer_email = serializers.EmailField(source='customer.user.email', read_only=True)
@@ -217,7 +290,11 @@ class DriverSerializer(serializers.ModelSerializer):
     class Meta:
         model = Driver
         fields = [
-            'id', 'user', 'first_name', 'last_name', 'phone_number', 'license_number', 'active',
+            'id', 'user', 'first_name', 'last_name', 'phone_number', 'license_number',
+            'license_issuing_region',
+            'address_unit', 'address_street', 'address_city', 'address_state',
+            'address_postal_code', 'address_country',
+            'active',
             'approval_status', 'approval_rejection_reason', 'approved_at',
             'vehicle_id', 'assigned_from', 'current_vehicle', 'current_vehicle_plate', 'current_vehicle_model',
         ]
@@ -366,6 +443,50 @@ class DriverSerializer(serializers.ModelSerializer):
         return instance
 
 
+class StaffDriverCreateSerializer(serializers.ModelSerializer):
+    """Admin creates a driver with linked User account (no vehicle bundled)."""
+
+    username = serializers.CharField(write_only=True)
+    email = serializers.EmailField(write_only=True)
+    password = serializers.CharField(write_only=True, min_length=8)
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    license_issuing_region = serializers.CharField(required=False, allow_blank=True, default='')
+
+    class Meta:
+        model = Driver
+        fields = [
+            'username', 'email', 'password', 'first_name', 'last_name',
+            'phone_number', 'license_number', 'license_issuing_region',
+            'address_unit', 'address_street', 'address_city', 'address_state',
+            'address_postal_code', 'address_country', 'active',
+        ]
+
+    def validate_phone_number(self, value):
+        import re
+        digits = re.sub(r'\D', '', value or '')
+        if len(digits) != 10:
+            raise serializers.ValidationError(
+                'Phone must be exactly 10 digits (North America, no area code).'
+            )
+        return digits
+
+    def validate_username(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError(USERNAME_TAKEN)
+        return value
+
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError(EMAIL_TAKEN)
+        return value
+
+    def create(self, validated_data):
+        from .registration_service import create_driver_as_staff
+
+        return create_driver_as_staff(validated_data)
+
+
 class VehicleSerializer(serializers.ModelSerializer):
     capacity_display = serializers.CharField(read_only=True, help_text="Formatted capacity with unit")
     full_model = serializers.CharField(read_only=True, help_text="Combined make and model for backward compatibility")
@@ -453,7 +574,8 @@ class DriverMeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Driver
         fields = [
-            'id', 'first_name', 'last_name', 'phone_number', 'license_number', 'active',
+            'id', 'first_name', 'last_name', 'phone_number', 'license_number',
+            'license_issuing_region', 'active',
             'approval_status', 'approval_rejection_reason',
             'address_unit', 'address_street', 'address_city', 'address_state',
             'address_postal_code', 'address_country', 'full_address', 'password',
@@ -704,8 +826,11 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Driver
         fields = ['username', 'email', 'password', 'first_name', 'last_name', 'full_name',
-                 'phone_number', 'license_number', 'license_issuing_region', 'vehicle_license_plate',
-                 'vehicle_model_spec_id', 'vehicle_year', 'vehicle_vin', 'vehicle_capacity', 'vehicle_capacity_unit']
+                 'phone_number', 'license_number', 'license_issuing_region',
+                 'address_unit', 'address_street', 'address_city', 'address_state',
+                 'address_postal_code', 'address_country',
+                 'vehicle_license_plate', 'vehicle_model_spec_id', 'vehicle_year', 'vehicle_vin',
+                 'vehicle_capacity', 'vehicle_capacity_unit']
         extra_kwargs = {
             'license_number': {'validators': []},
         }

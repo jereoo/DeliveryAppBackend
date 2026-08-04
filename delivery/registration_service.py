@@ -37,6 +37,35 @@ def create_customer_as_staff(validated_data: dict) -> Customer:
     return Customer.objects.create(user=user, **validated_data)
 
 
+def create_driver_as_staff(validated_data: dict) -> Driver:
+    """Admin creates driver with User account; auto-approved when active."""
+    username = validated_data.pop('username')
+    email = validated_data.pop('email')
+    password = validated_data.pop('password')
+    first_name = validated_data.pop('first_name')
+    last_name = validated_data.pop('last_name')
+    active = validated_data.pop('active', True)
+
+    user = User.objects.create_user(
+        username=username,
+        email=email,
+        password=password,
+        first_name=first_name,
+        last_name=last_name,
+        is_staff=False,
+        is_superuser=False,
+    )
+
+    return Driver.objects.create(
+        user=user,
+        first_name=first_name,
+        last_name=last_name,
+        active=active,
+        approval_status=DriverApprovalStatus.APPROVED if active else DriverApprovalStatus.PENDING,
+        **validated_data,
+    )
+
+
 def register_driver(validated_data: dict) -> Driver:
     """Driver self-registration: User + Driver + catalog vehicle assignment."""
     validated_data.pop('full_name', None)
