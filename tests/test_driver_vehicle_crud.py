@@ -232,6 +232,37 @@ class DriverProfileCRUDTests(APITestCase, DriverVehicleCRUDFixtures):
         self.driver.refresh_from_db()
         self.assertTrue(self.driver.active)
 
+    def test_driver_me_patch_updates_address(self):
+        response = self.client.patch('/api/drivers/me/', {
+            'address_unit': '4B',
+            'address_street': '123 Main St',
+            'address_city': 'Vancouver',
+            'address_state': 'BC',
+            'address_postal_code': 'V6B1A1',
+            'address_country': 'CA',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.driver.refresh_from_db()
+        self.assertEqual(self.driver.address_street, '123 Main St')
+        self.assertEqual(self.driver.address_city, 'Vancouver')
+        self.assertEqual(self.driver.address_country, 'CA')
+        self.assertIn('123 Main St', response.data['full_address'])
+
+    def test_driver_me_patch_updates_password(self):
+        self.driver_user.set_password('OldPass1234!')
+        self.driver_user.save()
+        response = self.client.patch('/api/drivers/me/', {
+            'password': 'NewPass5678!',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.driver_user.refresh_from_db()
+        self.assertTrue(self.driver_user.check_password('NewPass5678!'))
+        self.assertFalse(self.driver_user.check_password('OldPass1234!'))
+
+    def test_driver_me_patch_rejects_short_password(self):
+        response = self.client.patch('/api/drivers/me/', {'password': 'short'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_driver_sees_only_own_row_in_list(self):
         response = self.client.get('/api/drivers/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)

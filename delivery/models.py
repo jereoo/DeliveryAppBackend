@@ -174,6 +174,8 @@ class Delivery(models.Model):
 
     
 class Driver(models.Model):
+    COUNTRY_CHOICES = Customer.COUNTRY_CHOICES
+
     # CIO DIRECTIVE: Fixed OneToOneField relationship - PROTECT prevents cascade deletion
     user = models.OneToOneField(User, on_delete=models.PROTECT, related_name='driver_profile')
     
@@ -182,6 +184,17 @@ class Driver(models.Model):
     last_name = models.CharField(max_length=150, blank=True, help_text='Driver last name')
     
     phone_number = models.CharField(max_length=20)
+    address_unit = models.CharField(max_length=20, blank=True, null=True, help_text='Unit/Apartment number')
+    address_street = models.CharField(max_length=255, blank=True, null=True, help_text='Street address')
+    address_city = models.CharField(max_length=100, blank=True, null=True, help_text='City')
+    address_state = models.CharField(max_length=100, blank=True, null=True, help_text='State/Province')
+    address_postal_code = models.CharField(max_length=20, blank=True, null=True, help_text='Postal/ZIP code')
+    address_country = models.CharField(
+        max_length=2,
+        choices=COUNTRY_CHOICES,
+        default='US',
+        help_text='Country',
+    )
     license_number = models.CharField(max_length=50, unique=True)
     license_issuing_region = models.CharField(
         max_length=8,
@@ -227,6 +240,25 @@ class Driver(models.Model):
         if self.user and (self.user.first_name or self.user.last_name):
             return f"{self.user.first_name} {self.user.last_name}".strip()
         return 'Unknown Driver'
+
+    @property
+    def full_address(self):
+        """Combine separate address fields into a single formatted address."""
+        address_parts = []
+        if self.address_unit:
+            address_parts.append(f"Unit {self.address_unit}")
+        if self.address_street:
+            address_parts.append(self.address_street)
+        if self.address_city:
+            address_parts.append(self.address_city)
+        if self.address_state:
+            address_parts.append(self.address_state)
+        if self.address_postal_code:
+            address_parts.append(self.address_postal_code)
+        if self.address_country:
+            country_name = dict(self.COUNTRY_CHOICES).get(self.address_country, self.address_country)
+            address_parts.append(country_name)
+        return ', '.join(address_parts)
 
     class Meta:
         ordering = ['-id']

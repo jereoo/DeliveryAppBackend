@@ -447,12 +447,16 @@ class DriverMeSerializer(serializers.ModelSerializer):
     active = serializers.BooleanField(read_only=True)
     approval_status = serializers.CharField(read_only=True)
     approval_rejection_reason = serializers.CharField(read_only=True)
+    full_address = serializers.CharField(read_only=True)
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True, min_length=8)
 
     class Meta:
         model = Driver
         fields = [
             'id', 'first_name', 'last_name', 'phone_number', 'license_number', 'active',
             'approval_status', 'approval_rejection_reason',
+            'address_unit', 'address_street', 'address_city', 'address_state',
+            'address_postal_code', 'address_country', 'full_address', 'password',
         ]
 
     def validate_phone_number(self, value):
@@ -472,17 +476,41 @@ class DriverMeSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(LICENSE_NUMBER_TAKEN)
         return value
 
+    def validate(self, data):
+        import re
+
+        postal_code = data.get('address_postal_code')
+        country = data.get('address_country')
+        if postal_code and country:
+            postal_code = postal_code.strip().upper()
+            if country == 'CA':
+                canadian_pattern = r'^[A-Z]\d[A-Z]\s*\d[A-Z]\d$'
+                if not re.match(canadian_pattern, postal_code):
+                    raise serializers.ValidationError({
+                        'address_postal_code': 'Canadian postal codes must be in the format A1A 1A1 or A1A1A1 (e.g., K1A 0A6)'
+                    })
+            elif country == 'US':
+                us_pattern = r'^\d{5}(-\d{4})?$'
+                if not re.match(us_pattern, postal_code):
+                    raise serializers.ValidationError({
+                        'address_postal_code': 'US ZIP codes must be in the format 12345 or 12345-1234'
+                    })
+        return data
+
     def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
         first_name = validated_data.pop('first_name', None)
         last_name = validated_data.pop('last_name', None)
-        if first_name is not None or last_name is not None:
-            user = instance.user
+        user = instance.user
+        if first_name is not None or last_name is not None or password:
             if first_name is not None:
                 user.first_name = first_name
                 instance.first_name = first_name
             if last_name is not None:
                 user.last_name = last_name
                 instance.last_name = last_name
+            if password:
+                user.set_password(password)
             user.save()
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
