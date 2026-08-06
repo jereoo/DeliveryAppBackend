@@ -226,17 +226,55 @@ class CustomerMeSerializer(serializers.ModelSerializer):
         return instance
 
 
+def _validate_delivery_location_fields(data, instance=None):
+    """Shared pickup/dropoff rules for customer requests and admin CRUD."""
+    errors = {}
+
+    same_pickup = data.get('same_pickup_as_customer')
+    if same_pickup is None and instance is not None:
+        same_pickup = instance.same_pickup_as_customer
+    use_preferred = data.get('use_preferred_pickup')
+    if use_preferred is None and instance is not None:
+        use_preferred = instance.use_preferred_pickup
+    same_dropoff = data.get('same_dropoff_as_customer')
+    if same_dropoff is None and instance is not None:
+        same_dropoff = instance.same_dropoff_as_customer
+
+    pickup_location = data.get('pickup_location')
+    if pickup_location is None and instance is not None:
+        pickup_location = instance.pickup_location
+    dropoff_location = data.get('dropoff_location')
+    if dropoff_location is None and instance is not None:
+        dropoff_location = instance.dropoff_location
+
+    if not same_pickup and not use_preferred and not pickup_location:
+        errors['pickup_location'] = 'This field is required when not using customer address as pickup location.'
+    if not same_dropoff and not dropoff_location:
+        errors['dropoff_location'] = 'This field is required when not using customer address as dropoff location.'
+
+    if errors:
+        raise serializers.ValidationError(errors)
+    return data
+
+
 class DeliverySerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.display_name', read_only=True)
     customer_email = serializers.EmailField(source='customer.user.email', read_only=True)
     customer_phone = serializers.CharField(source='customer.phone_number', read_only=True)
-    
+    pickup_location = serializers.CharField(required=False, allow_blank=True)
+    dropoff_location = serializers.CharField(required=False, allow_blank=True)
+
     class Meta:
         model = Delivery
         fields = ['id', 'customer', 'customer_name', 'customer_email', 'customer_phone',
                  'pickup_location', 'dropoff_location', 'same_pickup_as_customer', 'use_preferred_pickup', 'same_dropoff_as_customer',
                  'item_description', 'status', 'delivery_date', 'delivery_time', 'special_instructions',
                  'estimated_cost', 'created_at', 'updated_at']
+
+    def validate(self, data):
+        if self.instance is None and not data.get('customer'):
+            raise serializers.ValidationError({'customer': 'This field is required.'})
+        return _validate_delivery_location_fields(data, self.instance)
 
 
 class DeliveryCreateSerializer(serializers.ModelSerializer):
@@ -250,21 +288,7 @@ class DeliveryCreateSerializer(serializers.ModelSerializer):
                  'item_description', 'delivery_date', 'delivery_time', 'special_instructions']
     
     def validate(self, data):
-        """Ensure pickup and dropoff locations are provided unless using customer address"""
-        errors = {}
-        
-        # Validate pickup location
-        if not data.get('same_pickup_as_customer') and not data.get('use_preferred_pickup') and not data.get('pickup_location'):
-            errors['pickup_location'] = 'This field is required when not using customer address as pickup location.'
-        
-        # Validate dropoff location
-        if not data.get('same_dropoff_as_customer') and not data.get('dropoff_location'):
-            errors['dropoff_location'] = 'This field is required when not using customer address as dropoff location.'
-            
-        if errors:
-            raise serializers.ValidationError(errors)
-            
-        return data
+        return _validate_delivery_location_fields(data, self.instance)
     
     def create(self, validated_data):
         # Auto-assign customer from request user
