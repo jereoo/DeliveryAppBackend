@@ -53,6 +53,7 @@ class CurrentUserMeTests(APITestCase):
         self.assertEqual(response.data['role'], 'admin')
         self.assertEqual(response.data['user_id'], self.admin.id)
         self.assertIsNone(response.data['profile_id'])
+        self.assertEqual(response.data['username'], 'adminuser')
 
     def test_me_returns_customer_profile(self):
         self._auth(self.customer_user)
@@ -61,6 +62,7 @@ class CurrentUserMeTests(APITestCase):
         self.assertEqual(response.data['role'], 'customer')
         self.assertEqual(response.data['user_id'], self.customer_user.id)
         self.assertEqual(response.data['profile_id'], self.customer.id)
+        self.assertEqual(response.data['username'], 'customeruser')
 
     def test_me_returns_driver_profile(self):
         self._auth(self.driver_user)
@@ -69,6 +71,7 @@ class CurrentUserMeTests(APITestCase):
         self.assertEqual(response.data['role'], 'driver')
         self.assertEqual(response.data['user_id'], self.driver_user.id)
         self.assertEqual(response.data['profile_id'], self.driver.id)
+        self.assertEqual(response.data['username'], 'driveruser')
 
     def test_me_returns_403_without_profile(self):
         plain_user = User.objects.create_user(

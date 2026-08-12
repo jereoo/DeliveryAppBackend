@@ -21,6 +21,7 @@ def resolve_current_user_role(user: User) -> dict | None:
             'role': ROLE_ADMIN,
             'user_id': user.id,
             'profile_id': None,
+            'username': user.username,
         }
 
     try:
@@ -33,6 +34,7 @@ def resolve_current_user_role(user: User) -> dict | None:
             'role': ROLE_CUSTOMER,
             'user_id': user.id,
             'profile_id': customer.id,
+            'username': user.username,
         }
 
     try:
@@ -45,6 +47,7 @@ def resolve_current_user_role(user: User) -> dict | None:
             'role': ROLE_DRIVER,
             'user_id': user.id,
             'profile_id': driver.id,
+            'username': user.username,
         }
 
     return None
