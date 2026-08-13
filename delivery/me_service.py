@@ -2,11 +2,38 @@
 
 from django.contrib.auth.models import User
 
-from .models import Customer, Driver
+from .models import Customer, Driver, StaffProfile
+from .staff_constants import StaffRole
+from .staff_permissions import get_permissions_for_staff_role, get_staff_role_for_user
 
 ROLE_ADMIN = 'admin'
+ROLE_STAFF = 'staff'
 ROLE_CUSTOMER = 'customer'
 ROLE_DRIVER = 'driver'
+
+
+def _build_staff_payload(user: User) -> dict:
+    staff_role = get_staff_role_for_user(user)
+    permissions = get_permissions_for_staff_role(staff_role)
+    try:
+        profile_id = user.staff_profile.id
+    except StaffProfile.DoesNotExist:
+        profile_id = None
+
+    payload = {
+        'user_id': user.id,
+        'profile_id': profile_id,
+        'username': user.username,
+        'staff_role': staff_role,
+        'permissions': permissions,
+    }
+
+    if staff_role == StaffRole.SUPER_ADMIN:
+        payload['role'] = ROLE_ADMIN
+    else:
+        payload['role'] = ROLE_STAFF
+
+    return payload
 
 
 def resolve_current_user_role(user: User) -> dict | None:
@@ -15,14 +42,12 @@ def resolve_current_user_role(user: User) -> dict | None:
 
     Priority: staff admin > customer profile > driver profile.
     Returns None when the user has no recognized v1.0 profile.
+
+    Staff (Option A): super_admin → role admin; other staff roles → role staff
+    with staff_role + permissions.
     """
     if user.is_staff:
-        return {
-            'role': ROLE_ADMIN,
-            'user_id': user.id,
-            'profile_id': None,
-            'username': user.username,
-        }
+        return _build_staff_payload(user)
 
     try:
         customer = user.customer_profile

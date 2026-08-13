@@ -48,5 +48,13 @@ class Command(BaseCommand):
         user.set_password(password)
         user.save()
 
+        from delivery.models import StaffProfile
+        from delivery.staff_constants import StaffRole
+
+        StaffProfile.objects.update_or_create(
+            user=user,
+            defaults={'staff_role': StaffRole.SUPER_ADMIN},
+        )
+
         verb = 'Created' if created else 'Updated'
         self.stdout.write(self.style.SUCCESS(f"{verb} staff user '{username}' (password from ADMIN_PASSWORD)"))

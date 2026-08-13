@@ -11,6 +11,7 @@ from .compliance_constants import (
     DRIVER_DOCUMENT_TYPES,
     VEHICLE_DOCUMENT_TYPES,
 )
+from .staff_constants import StaffRole
 
 
 class DriverApprovalStatus(models.TextChoices):
@@ -24,6 +25,31 @@ class VehicleApprovalStatus(models.TextChoices):
     APPROVED = 'APPROVED', 'Approved'
     RESUBMIT = 'RESUBMIT', 'Resubmit required'
     REJECTED = 'REJECTED', 'Rejected'
+
+
+class StaffProfile(models.Model):
+    """Operational staff account metadata (Phase 4G). One row per is_staff user."""
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.PROTECT,
+        related_name='staff_profile',
+    )
+    staff_role = models.CharField(
+        max_length=32,
+        choices=StaffRole.choices,
+        default=StaffRole.SUPER_ADMIN,
+    )
+    job_title = models.CharField(max_length=100, blank=True, default='')
+    phone_number = models.CharField(max_length=20, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['user__username']
+
+    def __str__(self) -> str:
+        return f'Staff {self.user.username} ({self.staff_role})'
 
 
 class Customer(models.Model):
