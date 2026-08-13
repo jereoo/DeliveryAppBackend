@@ -7,6 +7,7 @@ from .views import (
     DeliveryAssignmentViewSet, CustomerViewSet, LegalDocumentViewSet,
     VehicleCatalogViewSet, ComplianceAdminViewSet,
 )
+from .views_staff import StaffUserViewSet
 from rest_framework.routers import DefaultRouter
 
 # 20250827 updated to include JWT auth endpoints
@@ -20,6 +21,7 @@ router.register(r'assignments', DeliveryAssignmentViewSet, basename='deliveryass
 router.register(r'documents', LegalDocumentViewSet, basename='legaldocument')
 router.register(r'vehicle-catalog', VehicleCatalogViewSet, basename='vehiclecatalog')
 router.register(r'compliance/admin', ComplianceAdminViewSet, basename='complianceadmin')
+router.register(r'staff', StaffUserViewSet, basename='staff')
 
 urlpatterns = [
     path('token/', LoggingTokenObtainPairView.as_view(), name='token_obtain_pair'),

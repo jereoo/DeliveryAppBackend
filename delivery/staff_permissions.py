@@ -1,9 +1,10 @@
 """Staff permission helpers — single source of truth for role → permission checks."""
 
 from django.contrib.auth.models import User
+from rest_framework.permissions import BasePermission
 
 from .models import StaffProfile
-from .staff_constants import PERMISSIONS_BY_ROLE, StaffRole
+from .staff_constants import PERMISSIONS_BY_ROLE, PERM_STAFF_MANAGE, StaffRole
 
 
 def get_staff_role_for_user(user: User) -> str:
@@ -27,3 +28,10 @@ def user_has_staff_permission(user: User, permission: str) -> bool:
         return False
     staff_role = get_staff_role_for_user(user)
     return permission in PERMISSIONS_BY_ROLE.get(staff_role, ())
+
+
+class CanManageStaffUsers(BasePermission):
+    """Super Admin only — staff.manage permission."""
+
+    def has_permission(self, request, view):
+        return user_has_staff_permission(request.user, PERM_STAFF_MANAGE)
