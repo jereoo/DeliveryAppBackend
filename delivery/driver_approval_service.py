@@ -1,14 +1,15 @@
 """Driver registration approval workflow (admin gate after self-registration)."""
 
 from django.utils import timezone
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import ValidationError
 
 from .models import Driver, DriverApprovalStatus
+from .staff_constants import PERM_DRIVERS_APPROVE
+from .staff_permissions import require_staff_permission
 
 
 def approve_driver(staff_user, driver: Driver) -> Driver:
-    if not staff_user.is_staff:
-        raise PermissionDenied('Only staff may approve drivers.')
+    require_staff_permission(staff_user, PERM_DRIVERS_APPROVE, message='Only staff with driver approval permission may approve drivers.')
     if driver.approval_status == DriverApprovalStatus.APPROVED:
         raise ValidationError({'approval_status': 'Driver is already approved.'})
 
@@ -28,8 +29,7 @@ def approve_driver(staff_user, driver: Driver) -> Driver:
 
 
 def reject_driver(staff_user, driver: Driver, *, reason: str) -> Driver:
-    if not staff_user.is_staff:
-        raise PermissionDenied('Only staff may reject drivers.')
+    require_staff_permission(staff_user, PERM_DRIVERS_APPROVE, message='Only staff with driver approval permission may reject drivers.')
     if not reason or not str(reason).strip():
         raise ValidationError({'rejection_reason': 'Rejection reason is required.'})
 

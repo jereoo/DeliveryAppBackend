@@ -1,10 +1,27 @@
 """Staff permission helpers — single source of truth for role → permission checks."""
 
 from django.contrib.auth.models import User
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import BasePermission
 
 from .models import StaffProfile
-from .staff_constants import PERMISSIONS_BY_ROLE, PERM_STAFF_MANAGE, StaffRole
+from .staff_constants import (
+    PERMISSIONS_BY_ROLE,
+    PERM_COMPLIANCE_VIEW,
+    PERM_COMPLIANCE_VERIFY,
+    PERM_DELIVERIES_ASSIGN,
+    PERM_DELIVERIES_VIEW,
+    PERM_DRIVERS_APPROVE,
+    PERM_DRIVERS_VIEW,
+    PERM_REPORTS_VIEW,
+    PERM_RESOURCES_VIEW,
+    PERM_RESOURCES_WRITE,
+    PERM_STAFF_MANAGE,
+    PERM_VEHICLES_REACTIVATE,
+    PERM_VEHICLES_VIEW,
+    VIEW_PERMISSIONS,
+    StaffRole,
+)
 
 
 def get_staff_role_for_user(user: User) -> str:
@@ -28,6 +45,18 @@ def user_has_staff_permission(user: User, permission: str) -> bool:
         return False
     staff_role = get_staff_role_for_user(user)
     return permission in PERMISSIONS_BY_ROLE.get(staff_role, ())
+
+
+def staff_can_view_operational_data(user: User) -> bool:
+    """Staff with any read permission (all v1.0 staff roles)."""
+    if not user.is_staff:
+        return False
+    return any(user_has_staff_permission(user, perm) for perm in VIEW_PERMISSIONS)
+
+
+def require_staff_permission(user: User, permission: str, *, message: str | None = None) -> None:
+    if not user_has_staff_permission(user, permission):
+        raise PermissionDenied(message or 'You do not have permission for this action.')
 
 
 class CanManageStaffUsers(BasePermission):

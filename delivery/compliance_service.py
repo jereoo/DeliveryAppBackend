@@ -17,6 +17,14 @@ from . import compliance_storage
 from .compliance_reminder_service import clear_expiry_reminder_fields
 from .driver_utils import get_current_vehicle, get_driver_for_user
 from .models import Driver, DriverApprovalStatus, DriverVehicle, LegalDocument, Vehicle
+from .staff_constants import (
+    PERM_COMPLIANCE_VERIFY,
+    PERM_COMPLIANCE_VIEW,
+    PERM_DRIVERS_VIEW,
+    PERM_RESOURCES_VIEW,
+    PERM_VEHICLES_VIEW,
+)
+from .staff_permissions import require_staff_permission, staff_can_view_operational_data, user_has_staff_permission
 
 REQUIRED_COMPLIANCE_TYPES = (
     DocumentType.DRIVER_LICENSE,
@@ -35,14 +43,22 @@ MISCLASSIFIED_DRIVER_LICENSE_FILENAME_HINTS = (
 
 def user_can_access_driver(user, driver: Driver) -> bool:
     if user.is_staff:
-        return True
+        return (
+            user_has_staff_permission(user, PERM_DRIVERS_VIEW)
+            or user_has_staff_permission(user, PERM_COMPLIANCE_VIEW)
+            or user_has_staff_permission(user, PERM_RESOURCES_VIEW)
+        )
     my_driver = get_driver_for_user(user)
     return my_driver is not None and my_driver.id == driver.id
 
 
 def user_can_access_vehicle(user, vehicle: Vehicle) -> bool:
     if user.is_staff:
-        return True
+        return (
+            user_has_staff_permission(user, PERM_VEHICLES_VIEW)
+            or user_has_staff_permission(user, PERM_COMPLIANCE_VIEW)
+            or user_has_staff_permission(user, PERM_RESOURCES_VIEW)
+        )
     driver = get_driver_for_user(user)
     if not driver:
         return False
@@ -52,7 +68,7 @@ def user_can_access_vehicle(user, vehicle: Vehicle) -> bool:
 
 def user_can_access_document(user, document: LegalDocument) -> bool:
     if user.is_staff:
-        return True
+        return staff_can_view_operational_data(user)
     if document.driver_id:
         return user_can_access_driver(user, document.driver)
     if document.vehicle_id:
@@ -325,8 +341,7 @@ def _reject_superseded_pending(document: LegalDocument):
 
 
 def mark_verified(staff_user, document_id: int, notes=None) -> LegalDocument:
-    if not staff_user.is_staff:
-        raise PermissionDenied('Only staff can verify documents.')
+    require_staff_permission(staff_user, PERM_COMPLIANCE_VERIFY, message='Only staff with compliance verify permission can verify documents.')
 
     document = get_document_or_404(document_id)
     if document.status != DocumentStatus.PENDING:
@@ -356,8 +371,7 @@ def mark_verified(staff_user, document_id: int, notes=None) -> LegalDocument:
 
 
 def mark_rejected(staff_user, document_id: int, reason: str) -> LegalDocument:
-    if not staff_user.is_staff:
-        raise PermissionDenied('Only staff can reject documents.')
+    require_staff_permission(staff_user, PERM_COMPLIANCE_VERIFY, message='Only staff with compliance verify permission can reject documents.')
 
     document = get_document_or_404(document_id)
     if not reason:
@@ -523,8 +537,7 @@ def find_misclassified_driver_documents():
 
 
 def reject_misclassified_driver_documents(staff_user, *, reason: str) -> int:
-    if not staff_user.is_staff:
-        raise PermissionDenied('Staff required.')
+    require_staff_permission(staff_user, PERM_COMPLIANCE_VERIFY, message='Staff with compliance verify permission required.')
     count = 0
     for document in find_misclassified_driver_documents():
         if document.status == DocumentStatus.REJECTED:

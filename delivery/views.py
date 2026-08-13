@@ -36,7 +36,6 @@ from .compliance_permissions import (
     CanManageVehicleDocuments,
     CanVerifyLegalDocument,
     IsStaffOrDocumentOwner,
-    IsStaffUser,
 )
 from .permissions import (
     CanManageCustomer,
@@ -44,11 +43,15 @@ from .permissions import (
     CanManageDeliveryAssignment,
     CanManageDriver,
     CanManageDriverVehicleAssignment,
+    IsStaffUser,
     scope_customer_queryset,
     scope_delivery_queryset,
     scope_driver_queryset,
     scope_driver_vehicle_queryset,
+    staff_can_view_operational_data,
 )
+from .staff_constants import PERM_RESOURCES_WRITE, PERM_VEHICLES_REACTIVATE
+from .staff_permissions import user_has_staff_permission
 from .serializers import (DeliverySerializer, DriverSerializer, VehicleSerializer, DriverVehicleSerializer, 
                          DeliveryAssignmentSerializer, DriverWithVehicleSerializer, CustomerSerializer, 
                          CustomerRegistrationSerializer, CustomerMeSerializer, DeliveryCreateSerializer, DriverRegistrationSerializer,
@@ -112,7 +115,7 @@ class DeliveryViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, CanManageDelivery]
 
     def get_serializer_class(self):
-        if self.action == 'create' and not self.request.user.is_staff:
+        if self.action == 'create' and not user_has_staff_permission(self.request.user, PERM_RESOURCES_WRITE):
             return DeliveryCreateSerializer
         return DeliverySerializer
 
@@ -141,7 +144,7 @@ class DeliveryViewSet(viewsets.ModelViewSet):
     def cancel(self, request, pk=None):
         """Customer or staff cancels a pending delivery."""
         delivery = self.get_object()
-        if not request.user.is_staff:
+        if not user_has_staff_permission(request.user, PERM_RESOURCES_WRITE):
             try:
                 if delivery.customer_id != request.user.customer_profile.id:
                     raise PermissionDenied('You can only cancel your own deliveries.')
@@ -313,7 +316,7 @@ class DriverViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         """Override list to include available vehicles for admin driver creation."""
         response = super().list(request, *args, **kwargs)
-        if request.user.is_staff and isinstance(response.data, dict):
+        if staff_can_view_operational_data(request.user) and isinstance(response.data, dict):
             available_vehicles = Vehicle.objects.filter(active=True).values(
                 'id', 'license_plate', 'model', 'capacity'
             )
@@ -479,7 +482,7 @@ class DriverViewSet(viewsets.ModelViewSet):
         driver = self.get_object()
         if not compliance_service.user_can_access_driver(request.user, driver):
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
-        if not request.user.is_staff:
+        if not staff_can_view_operational_data(request.user):
             my_driver = get_driver_for_user(request.user)
             if not my_driver or my_driver.id != driver.id:
                 return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -519,12 +522,16 @@ class VehicleViewSet(viewsets.ModelViewSet):
     serializer_class = VehicleSerializer
     permission_classes = [IsAuthenticated]
 
-    def _require_staff(self, request):
-        if not request.user.is_staff:
-            raise PermissionDenied('Only staff can modify vehicles.')
+    def _require_resources_write(self, request):
+        if not user_has_staff_permission(request.user, PERM_RESOURCES_WRITE):
+            raise PermissionDenied('Only staff with resource write permission can modify vehicles.')
+
+    def _require_reactivate(self, request):
+        if not user_has_staff_permission(request.user, PERM_VEHICLES_REACTIVATE):
+            raise PermissionDenied('Only staff with vehicle reactivation permission can reactivate vehicles.')
 
     def create(self, request, *args, **kwargs):
-        self._require_staff(request)
+        self._require_resources_write(request)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         from .models import VehicleApprovalStatus
@@ -552,7 +559,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
         return Response(serialize_vehicle_for_user(request.user, vehicle))
 
     def destroy(self, request, *args, **kwargs):
-        self._require_staff(request)
+        self._require_resources_write(request)
         vehicle = self.get_object()
         if vehicle_has_history(vehicle):
             deactivate_vehicle(vehicle)
@@ -572,7 +579,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='deactivate')
     def deactivate(self, request, pk=None):
-        self._require_staff(request)
+        self._require_resources_write(request)
         vehicle = self.get_object()
         deactivate_vehicle(vehicle)
         return Response(
@@ -596,7 +603,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='reactivate')
     def reactivate(self, request, pk=None):
-        self._require_staff(request)
+        self._require_reactivate(request)
         vehicle = self.get_object()
         reactivate_vehicle(vehicle)
         return Response(
@@ -611,7 +618,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='approve')
     def approve(self, request, pk=None):
         """Staff approves a pending or resubmitted vehicle."""
-        self._require_staff(request)
+        self._require_resources_write(request)
         vehicle = self.get_object()
         vehicle = vehicle_approval_service.approve_vehicle(request.user, vehicle)
         return Response(VehicleSerializer(vehicle).data)
@@ -619,7 +626,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='resubmit')
     def request_resubmit(self, request, pk=None):
         """Staff sends vehicle back to driver for correction (does not edit identity fields)."""
-        self._require_staff(request)
+        self._require_resources_write(request)
         vehicle = self.get_object()
         serializer = VehicleResubmitRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

@@ -4,6 +4,8 @@ from rest_framework.permissions import BasePermission, IsAuthenticated
 
 from . import compliance_service
 from .permissions import IsStaffUser
+from .staff_permissions import user_has_staff_permission
+from .staff_constants import PERM_COMPLIANCE_VERIFY
 
 __all__ = [
     'CanManageDriverDocuments',
@@ -25,10 +27,14 @@ class IsStaffOrDocumentOwner(BasePermission):
 
 
 class CanVerifyLegalDocument(BasePermission):
-    """Admin verify/reject actions."""
+    """Staff verify/reject compliance documents."""
 
     def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated and request.user.is_staff
+        return (
+            request.user
+            and request.user.is_authenticated
+            and user_has_staff_permission(request.user, PERM_COMPLIANCE_VERIFY)
+        )
 
 
 class CanManageDriverDocuments(BasePermission):

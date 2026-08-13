@@ -5,6 +5,8 @@ from rest_framework.exceptions import ValidationError
 
 from .driver_utils import get_current_vehicle, get_driver_for_user
 from .serializers import DriverOwnedVehicleSerializer, VehicleSerializer
+from .staff_constants import PERM_RESOURCES_VIEW, PERM_RESOURCES_WRITE, PERM_VEHICLES_VIEW
+from .staff_permissions import user_has_staff_permission
 from .vehicle_field_policy import (
     assert_staff_may_edit_vehicle_fields,
     filter_driver_vehicle_patch_data,
@@ -13,9 +15,9 @@ from .vehicle_field_policy import (
 
 
 def user_can_update_vehicle(user, vehicle) -> bool:
-    """Staff may edit any vehicle; drivers only their current assigned vehicle."""
+    """Staff with resources.write may edit any vehicle; drivers only their current assigned vehicle."""
     if user.is_staff:
-        return True
+        return user_has_staff_permission(user, PERM_RESOURCES_WRITE)
     driver = get_driver_for_user(user)
     if not driver:
         return False
@@ -24,6 +26,12 @@ def user_can_update_vehicle(user, vehicle) -> bool:
 
 
 def user_can_read_vehicle(user, vehicle) -> bool:
+    if user.is_staff:
+        return (
+            user_has_staff_permission(user, PERM_VEHICLES_VIEW)
+            or user_has_staff_permission(user, PERM_RESOURCES_VIEW)
+            or user_has_staff_permission(user, PERM_RESOURCES_WRITE)
+        )
     return user_can_update_vehicle(user, vehicle)
 
 
@@ -48,7 +56,7 @@ def assert_driver_may_edit_vehicle(user, vehicle):
 
 
 def serializer_class_for_user(user):
-    if user.is_staff:
+    if user.is_staff and user_has_staff_permission(user, PERM_RESOURCES_WRITE):
         return VehicleSerializer
     return DriverOwnedVehicleSerializer
 
@@ -66,6 +74,8 @@ def update_vehicle(user, vehicle, data, *, partial=True):
     assert_driver_may_edit_vehicle(user, vehicle)
 
     if user.is_staff:
+        if not user_has_staff_permission(user, PERM_RESOURCES_WRITE):
+            raise ValidationError({'detail': 'You do not have permission to edit this vehicle.'})
         assert_staff_may_edit_vehicle_fields(vehicle, data)
     else:
         data = filter_driver_vehicle_patch_data(vehicle, data)

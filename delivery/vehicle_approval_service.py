@@ -7,11 +7,12 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from .driver_utils import get_current_vehicle, get_driver_for_user
 from .models import Vehicle, VehicleApprovalStatus
+from .staff_constants import PERM_RESOURCES_WRITE
+from .staff_permissions import require_staff_permission
 
 
 def approve_vehicle(staff_user, vehicle: Vehicle) -> Vehicle:
-    if not staff_user.is_staff:
-        raise PermissionDenied('Only staff may approve vehicles.')
+    require_staff_permission(staff_user, PERM_RESOURCES_WRITE, message='Only staff with resource write permission may approve vehicles.')
     if vehicle.approval_status == VehicleApprovalStatus.APPROVED:
         raise ValidationError({'approval_status': 'Vehicle is already approved.'})
     if vehicle.approval_status == VehicleApprovalStatus.REJECTED:
@@ -34,8 +35,7 @@ def approve_vehicle(staff_user, vehicle: Vehicle) -> Vehicle:
 
 def request_vehicle_resubmit(staff_user, vehicle: Vehicle, *, reason: str) -> Vehicle:
     """Staff sends an approved (or pending) vehicle back to the driver for correction."""
-    if not staff_user.is_staff:
-        raise PermissionDenied('Only staff may request vehicle resubmit.')
+    require_staff_permission(staff_user, PERM_RESOURCES_WRITE, message='Only staff with resource write permission may request vehicle resubmit.')
     if not reason or not str(reason).strip():
         raise ValidationError({'resubmit_reason': 'Resubmit reason is required.'})
     if vehicle.approval_status == VehicleApprovalStatus.REJECTED:
