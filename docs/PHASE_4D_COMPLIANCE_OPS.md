@@ -75,10 +75,10 @@ heroku config:set EMAIL_HOST=smtp.sendgrid.net -a truck-buddy
 heroku config:set EMAIL_HOST_USER=apikey -a truck-buddy
 heroku config:set EMAIL_HOST_PASSWORD=YOUR_SENDGRID_API_KEY -a truck-buddy
 heroku config:set EMAIL_USE_TLS=True -a truck-buddy
-heroku config:set DEFAULT_FROM_EMAIL=you@yourdomain.com -a truck-buddy
+heroku config:set DEFAULT_FROM_EMAIL=compliance@buynhaul.com -a truck-buddy
 ```
 
-Or add the **SendGrid** Heroku add-on and map its credentials to the vars above.
+Use **BuyNHaul.com** DNS (GoDaddy) for SendGrid SPF/DKIM. Full checklist: `DeliveryAppMobile/docs/PRODUCTION_DOMAIN_AND_EMAIL.md`.
 
 ### 3. Enable GitHub cron schedule
 
