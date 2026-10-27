@@ -1,6 +1,6 @@
 # Phase 4D — Compliance ops (backend API + scheduled jobs)
 
-**Status:** Backend API **Done**. Mobile admin UI **Done**. Nightly jobs + email reminders **Done**. GitHub Actions cron **Done** (verified). SMTP on Heroku **ops setup**.
+**Status:** Backend API **Done**. Mobile admin UI **Done**. Nightly jobs + email reminders **Done**. GitHub Actions cron **Done** (verified). SMTP on Heroku **Done** — Mailgun `mg.buynhaul.com`, From `compliance@buynhaul.com` (**prod verified Oct 26, 2026**). Confirm `run_compliance_daily_jobs` dry-run/live when ready.
 
 ---
 
@@ -67,18 +67,19 @@ release: python manage.py migrate --noinput
 
 Without SMTP config, Django uses the **console** backend — reminders are logged only, not emailed.
 
-**SendGrid (common on Heroku):**
+**Production (Mailgun — configured Oct 2026):**
 
 ```bash
 heroku config:set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend -a truck-buddy
-heroku config:set EMAIL_HOST=smtp.sendgrid.net -a truck-buddy
-heroku config:set EMAIL_HOST_USER=apikey -a truck-buddy
-heroku config:set EMAIL_HOST_PASSWORD=YOUR_SENDGRID_API_KEY -a truck-buddy
+heroku config:set EMAIL_HOST=smtp.mailgun.org -a truck-buddy
+heroku config:set EMAIL_PORT=587 -a truck-buddy
 heroku config:set EMAIL_USE_TLS=True -a truck-buddy
+heroku config:set EMAIL_HOST_USER=<SMTP login @mg.buynhaul.com> -a truck-buddy
+heroku config:set EMAIL_HOST_PASSWORD=<SMTP password> -a truck-buddy
 heroku config:set DEFAULT_FROM_EMAIL=compliance@buynhaul.com -a truck-buddy
 ```
 
-Use **BuyNHaul.com** DNS (GoDaddy) for SendGrid SPF/DKIM. Full checklist: `DeliveryAppMobile/docs/PRODUCTION_DOMAIN_AND_EMAIL.md`.
+Create SMTP credentials in Mailgun → **mg.buynhaul.com** → **SMTP credentials**. DNS (GoDaddy): `DeliveryAppMobile/docs/PRODUCTION_DOMAIN_AND_EMAIL.md`.
 
 ### 3. Enable GitHub cron schedule
 
