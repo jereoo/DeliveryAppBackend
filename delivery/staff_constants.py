@@ -10,6 +10,15 @@ class StaffRole(models.TextChoices):
     READ_ONLY = 'read_only', 'Read Only'
 
 
+class StaffAuditEventType(models.TextChoices):
+    STAFF_CREATED = 'staff_created', 'Staff created'
+    ROLE_CHANGED = 'role_changed', 'Role changed'
+    DEACTIVATED = 'deactivated', 'Deactivated'
+    REACTIVATED = 'reactivated', 'Reactivated'
+    INVITE_SENT = 'invite_sent', 'Invite sent'
+    INVITE_ACCEPTED = 'invite_accepted', 'Invite accepted'
+
+
 # Permission codes — enforced on API in Phase 4G slice 3+.
 PERM_STAFF_MANAGE = 'staff.manage'
 PERM_DRIVERS_APPROVE = 'drivers.approve'

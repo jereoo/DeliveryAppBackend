@@ -8,6 +8,7 @@ from .views import (
     VehicleCatalogViewSet, ComplianceAdminViewSet,
 )
 from .views_staff import StaffUserViewSet
+from .views_staff_slice5 import StaffAuditEventViewSet, StaffInvitePublicView, StaffInviteViewSet
 from rest_framework.routers import DefaultRouter
 
 # 20250827 updated to include JWT auth endpoints
@@ -22,11 +23,14 @@ router.register(r'documents', LegalDocumentViewSet, basename='legaldocument')
 router.register(r'vehicle-catalog', VehicleCatalogViewSet, basename='vehiclecatalog')
 router.register(r'compliance/admin', ComplianceAdminViewSet, basename='complianceadmin')
 router.register(r'staff', StaffUserViewSet, basename='staff')
+router.register(r'staff-audit-events', StaffAuditEventViewSet, basename='staff-audit-events')
+router.register(r'staff-invites', StaffInviteViewSet, basename='staff-invites')
 
 urlpatterns = [
     path('token/', LoggingTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('me/', CurrentUserView.as_view(), name='current_user'),
+    path('staff-invites/public/', StaffInvitePublicView.as_view(), name='staff-invites-public'),
 ]
 
 urlpatterns += router.urls

@@ -234,3 +234,10 @@ if _email_host:
     EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
     EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
     EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+
+# Staff invite links (Phase 4G Slice 5)
+STAFF_INVITE_WEB_BASE_URL = config(
+    'STAFF_INVITE_WEB_BASE_URL',
+    default='https://www.buynhaul.com',
+)
+STAFF_INVITE_TTL_DAYS = config('STAFF_INVITE_TTL_DAYS', default=7, cast=int)

@@ -6,7 +6,8 @@ from django.db.models import Q
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from .models import StaffProfile
-from .staff_constants import PERM_STAFF_MANAGE, StaffRole
+from .staff_audit_service import record_staff_audit_event
+from .staff_constants import PERM_STAFF_MANAGE, StaffAuditEventType, StaffRole
 from .staff_permissions import user_has_staff_permission
 
 
@@ -84,12 +85,21 @@ def create_staff_user(
         is_staff=True,
         is_superuser=(staff_role == StaffRole.SUPER_ADMIN),
     )
-    return StaffProfile.objects.create(
+    profile = StaffProfile.objects.create(
         user=user,
         staff_role=staff_role,
         job_title=job_title or '',
         phone_number=phone_number or '',
     )
+    record_staff_audit_event(
+        actor=actor,
+        event_type=StaffAuditEventType.STAFF_CREATED,
+        target_profile=profile,
+        target_email=email,
+        new_role=staff_role,
+        detail=f'Created staff user {username}',
+    )
+    return profile
 
 
 @transaction.atomic
@@ -106,6 +116,8 @@ def update_staff_profile(
 
     user = profile.user
     updates: list[str] = []
+    previous_role = profile.staff_role
+    previous_active = user.is_active
 
     if is_active is not None and is_active != user.is_active:
         if profile.user_id == actor.id and not is_active:
@@ -131,4 +143,28 @@ def update_staff_profile(
     if updates:
         user.save(update_fields=updates)
     profile.save()
+
+    if staff_role is not None and staff_role != previous_role:
+        record_staff_audit_event(
+            actor=actor,
+            event_type=StaffAuditEventType.ROLE_CHANGED,
+            target_profile=profile,
+            target_email=user.email,
+            old_role=previous_role,
+            new_role=profile.staff_role,
+        )
+    if is_active is not None and is_active != previous_active:
+        record_staff_audit_event(
+            actor=actor,
+            event_type=(
+                StaffAuditEventType.REACTIVATED
+                if is_active
+                else StaffAuditEventType.DEACTIVATED
+            ),
+            target_profile=profile,
+            target_email=user.email,
+            old_role=profile.staff_role,
+            new_role=profile.staff_role,
+        )
+
     return profile

@@ -11,7 +11,7 @@ from .compliance_constants import (
     DRIVER_DOCUMENT_TYPES,
     VEHICLE_DOCUMENT_TYPES,
 )
-from .staff_constants import StaffRole
+from .staff_constants import StaffAuditEventType, StaffRole
 
 
 class DriverApprovalStatus(models.TextChoices):
@@ -50,6 +50,69 @@ class StaffProfile(models.Model):
 
     def __str__(self) -> str:
         return f'Staff {self.user.username} ({self.staff_role})'
+
+
+class StaffAuditEvent(models.Model):
+    """Append-only staff admin audit log (Phase 4G Slice 5)."""
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    actor = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='staff_audit_events_acted',
+    )
+    target_profile = models.ForeignKey(
+        StaffProfile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='audit_events',
+    )
+    target_email = models.EmailField(blank=True, default='')
+    event_type = models.CharField(max_length=32, choices=StaffAuditEventType.choices)
+    old_role = models.CharField(max_length=32, blank=True, default='')
+    new_role = models.CharField(max_length=32, blank=True, default='')
+    detail = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'{self.event_type} @ {self.created_at.isoformat()}'
+
+
+class StaffInvite(models.Model):
+    """Email invite for staff onboarding (Phase 4G Slice 5)."""
+
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    email = models.EmailField()
+    staff_role = models.CharField(max_length=32, choices=StaffRole.choices)
+    first_name = models.CharField(max_length=150, blank=True, default='')
+    last_name = models.CharField(max_length=150, blank=True, default='')
+    invited_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='staff_invites_sent',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    accepted_profile = models.OneToOneField(
+        StaffProfile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='accepted_invite',
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'Invite {self.email} ({self.staff_role})'
 
 
 class Customer(models.Model):
