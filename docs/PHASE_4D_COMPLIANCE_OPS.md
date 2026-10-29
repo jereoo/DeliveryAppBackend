@@ -1,6 +1,6 @@
 # Phase 4D — Compliance ops (backend API + scheduled jobs)
 
-**Status:** Backend API **Done**. Mobile admin UI **Done**. Nightly jobs + email reminders **Done**. GitHub Actions cron **Done** (verified). SMTP on Heroku **Done** — Mailgun `mg.buynhaul.com`, From `compliance@buynhaul.com` (**prod verified Oct 26, 2026**). Confirm `run_compliance_daily_jobs` dry-run/live when ready.
+**Status:** Backend API **Done**. Mobile admin UI **Done**. Nightly jobs + email reminders **Done**. GitHub Actions cron **Done** (verified). SMTP on Heroku **Done** — Mailgun `mg.buynhaul.com`, From `compliance@buynhaul.com` (**prod verified Oct 26, 2026**). Heroku `run_compliance_daily_jobs` dry-run + live **prod verified Oct 29, 2026** (0 counts; no matching expiry data).
 
 ---
 
