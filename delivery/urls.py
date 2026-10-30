@@ -9,6 +9,7 @@ from .views import (
 )
 from .views_staff import StaffUserViewSet
 from .views_staff_slice5 import StaffAuditEventViewSet, StaffInvitePublicView, StaffInviteViewSet
+from .views_password_auth import ChangePasswordView, ForgotPasswordView, PasswordResetPublicView
 from rest_framework.routers import DefaultRouter
 
 # 20250827 updated to include JWT auth endpoints
@@ -30,6 +31,9 @@ urlpatterns = [
     path('token/', LoggingTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('me/', CurrentUserView.as_view(), name='current_user'),
+    path('auth/password/change/', ChangePasswordView.as_view(), name='auth-password-change'),
+    path('auth/password/forgot/', ForgotPasswordView.as_view(), name='auth-password-forgot'),
+    path('auth/password/reset/', PasswordResetPublicView.as_view(), name='auth-password-reset'),
     path('staff-invites/public/', StaffInvitePublicView.as_view(), name='staff-invites-public'),
 ]
 

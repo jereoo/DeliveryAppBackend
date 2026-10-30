@@ -49,7 +49,13 @@ class StaffUserSerializer(serializers.ModelSerializer):
 class StaffUserCreateSerializer(serializers.Serializer):
     username = serializers.CharField()
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True, min_length=8)
+    password = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+        min_length=8,
+        help_text='Optional — omit to auto-generate a temporary password emailed to the user.',
+    )
     first_name = serializers.CharField()
     last_name = serializers.CharField()
     staff_role = serializers.ChoiceField(choices=StaffRole.choices)
@@ -68,7 +74,8 @@ class StaffUserCreateSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         actor = self.context['request'].user
-        return create_staff_user(actor, **validated_data)
+        password = validated_data.pop('password', '') or None
+        return create_staff_user(actor, password=password, **validated_data)
 
 
 class StaffUserUpdateSerializer(serializers.Serializer):

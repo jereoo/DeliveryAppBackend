@@ -6,6 +6,7 @@ from django.db.models import Q
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from .models import StaffProfile
+from .password_auth_service import email_temporary_staff_password, generate_temporary_password
 from .staff_audit_service import record_staff_audit_event
 from .staff_constants import PERM_STAFF_MANAGE, StaffAuditEventType, StaffRole
 from .staff_permissions import user_has_staff_permission
@@ -60,10 +61,10 @@ def create_staff_user(
     *,
     username: str,
     email: str,
-    password: str,
-    first_name: str,
-    last_name: str,
-    staff_role: str,
+    password: str | None = None,
+    first_name: str = '',
+    last_name: str = '',
+    staff_role: str = StaffRole.READ_ONLY,
     job_title: str = '',
     phone_number: str = '',
 ) -> StaffProfile:
@@ -76,10 +77,16 @@ def create_staff_user(
     if User.objects.filter(email=email).exists():
         raise ValidationError({'email': 'This email is already registered.'})
 
+    temp_password = (password or '').strip()
+    issued_temp = False
+    if not temp_password:
+        temp_password = generate_temporary_password()
+        issued_temp = True
+
     user = User.objects.create_user(
         username=username,
         email=email,
-        password=password,
+        password=temp_password,
         first_name=first_name,
         last_name=last_name,
         is_staff=True,
@@ -90,7 +97,10 @@ def create_staff_user(
         staff_role=staff_role,
         job_title=job_title or '',
         phone_number=phone_number or '',
+        must_change_password=issued_temp,
     )
+    if issued_temp:
+        email_temporary_staff_password(user=user, temporary_password=temp_password)
     record_staff_audit_event(
         actor=actor,
         event_type=StaffAuditEventType.STAFF_CREATED,

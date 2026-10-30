@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 
 from .models import Customer, Driver, StaffProfile
 from .staff_constants import StaffRole
+from .password_auth_service import staff_must_change_password
 from .staff_permissions import get_permissions_for_staff_role, get_staff_role_for_user
 
 ROLE_ADMIN = 'admin'
@@ -26,6 +27,7 @@ def _build_staff_payload(user: User) -> dict:
         'username': user.username,
         'staff_role': staff_role,
         'permissions': permissions,
+        'must_change_password': staff_must_change_password(user),
     }
 
     if staff_role == StaffRole.SUPER_ADMIN:

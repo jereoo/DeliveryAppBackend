@@ -42,6 +42,10 @@ class StaffProfile(models.Model):
     )
     job_title = models.CharField(max_length=100, blank=True, default='')
     phone_number = models.CharField(max_length=20, blank=True, default='')
+    must_change_password = models.BooleanField(
+        default=False,
+        help_text='When True, user must change password before using the app (temp password flow).',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -50,6 +54,19 @@ class StaffProfile(models.Model):
 
     def __str__(self) -> str:
         return f'Staff {self.user.username} ({self.staff_role})'
+
+
+class PasswordResetToken(models.Model):
+    """One-time password reset token (email link)."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_reset_tokens')
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
 
 
 class StaffAuditEvent(models.Model):
