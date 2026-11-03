@@ -38,6 +38,7 @@ class StaffInviteSerializer(serializers.ModelSerializer):
         model = StaffInvite
         fields = [
             'id',
+            'username',
             'email',
             'staff_role',
             'first_name',
@@ -51,6 +52,7 @@ class StaffInviteSerializer(serializers.ModelSerializer):
 
 
 class StaffInviteCreateSerializer(serializers.Serializer):
+    username = serializers.CharField()
     email = serializers.EmailField()
     staff_role = serializers.ChoiceField(choices=StaffRole.choices)
     first_name = serializers.CharField(required=False, allow_blank=True, default='')
@@ -64,12 +66,19 @@ class StaffInviteCreateSerializer(serializers.Serializer):
 class StaffInviteValidateSerializer(serializers.ModelSerializer):
     class Meta:
         model = StaffInvite
-        fields = ['email', 'staff_role', 'first_name', 'last_name', 'expires_at']
+        fields = ['username', 'email', 'staff_role', 'first_name', 'last_name', 'expires_at']
 
 
 class StaffInviteAcceptSerializer(serializers.Serializer):
     token = serializers.CharField()
-    username = serializers.CharField()
     password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True, min_length=8)
     first_name = serializers.CharField(required=False, allow_blank=True, default='')
     last_name = serializers.CharField(required=False, allow_blank=True, default='')
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs['confirm_password']:
+            raise serializers.ValidationError(
+                {'confirm_password': 'Passwords do not match.'},
+            )
+        return attrs

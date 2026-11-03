@@ -86,6 +86,7 @@ class StaffSlice5Tests(APITestCase):
         create = self.client.post(
             '/api/staff-invites/',
             {
+                'username': 'inviteduser',
                 'email': 'invited@example.com',
                 'staff_role': StaffRole.OPERATIONS_ADMIN,
                 'first_name': 'Inv',
@@ -96,8 +97,10 @@ class StaffSlice5Tests(APITestCase):
         self.assertEqual(create.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn('staff_invite=', mail.outbox[0].body)
+        self.assertIn('inviteduser', mail.outbox[0].body)
 
         invite = StaffInvite.objects.get(email='invited@example.com')
+        self.assertEqual(invite.username, 'inviteduser')
         self.assertTrue(
             StaffAuditEvent.objects.filter(
                 event_type=StaffAuditEventType.INVITE_SENT,
@@ -114,8 +117,8 @@ class StaffSlice5Tests(APITestCase):
             '/api/staff-invites/public/',
             {
                 'token': invite.token,
-                'username': 'inviteduser',
                 'password': 'SecurePass1!',
+                'confirm_password': 'SecurePass1!',
             },
             format='json',
         )

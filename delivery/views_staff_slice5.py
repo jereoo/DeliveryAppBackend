@@ -81,7 +81,9 @@ class StaffInvitePublicView(APIView):
     def post(self, request):
         serializer = StaffInviteAcceptSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        profile = accept_staff_invite(**serializer.validated_data)
+        data = dict(serializer.validated_data)
+        data.pop('confirm_password', None)
+        profile = accept_staff_invite(**data)
         return Response(
             {
                 'username': profile.user.username,

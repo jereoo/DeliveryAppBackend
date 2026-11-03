@@ -39,6 +39,7 @@ def pending_invite_queryset():
 def create_staff_invite(
     actor: User,
     *,
+    username: str,
     email: str,
     staff_role: str,
     first_name: str = '',
@@ -46,18 +47,26 @@ def create_staff_invite(
 ) -> StaffInvite:
     require_can_manage_staff(actor)
 
+    normalized_username = username.strip()
     normalized_email = email.strip().lower()
+    if not normalized_username:
+        raise ValidationError({'username': 'Username is required.'})
     if staff_role not in StaffRole.values:
         raise ValidationError({'staff_role': 'Invalid staff role.'})
+    if User.objects.filter(username=normalized_username).exists():
+        raise ValidationError({'username': 'This username is already taken.'})
     if User.objects.filter(email__iexact=normalized_email).exists():
         raise ValidationError({'email': 'This email is already registered.'})
     if pending_invite_queryset().filter(email__iexact=normalized_email).exists():
         raise ValidationError({'email': 'A pending invite already exists for this email.'})
+    if pending_invite_queryset().filter(username=normalized_username).exists():
+        raise ValidationError({'username': 'A pending invite already exists for this username.'})
 
     token = secrets.token_urlsafe(32)
     expires_at = timezone.now() + timedelta(days=_invite_ttl_days())
     invite = StaffInvite.objects.create(
         token=token,
+        username=normalized_username,
         email=normalized_email,
         staff_role=staff_role,
         first_name=(first_name or '').strip(),
@@ -71,7 +80,8 @@ def create_staff_invite(
         subject='BuyNHaul staff invitation',
         message=(
             f'You have been invited to join BuyNHaul as staff ({staff_role}).\n\n'
-            f'Open this link to set your username and password (expires in {_invite_ttl_days()} days):\n'
+            f'Your login username: {normalized_username}\n\n'
+            f'Open this link to set your password (expires in {_invite_ttl_days()} days):\n'
             f'{invite_url}\n'
         ),
         from_email=settings.DEFAULT_FROM_EMAIL,
@@ -84,7 +94,7 @@ def create_staff_invite(
         event_type=StaffAuditEventType.INVITE_SENT,
         target_email=normalized_email,
         new_role=staff_role,
-        detail=f'Invite expires {expires_at.isoformat()}',
+        detail=f'Username {normalized_username}; invite expires {expires_at.isoformat()}',
     )
     return invite
 
@@ -108,12 +118,21 @@ def get_valid_invite_for_token(token: str) -> StaffInvite:
 def accept_staff_invite(
     *,
     token: str,
-    username: str,
     password: str,
     first_name: str = '',
     last_name: str = '',
 ) -> StaffProfile:
     invite = get_valid_invite_for_token(token)
+
+    assigned_username = (invite.username or '').strip()
+    if not assigned_username:
+        raise ValidationError(
+            {'token': 'This invite is missing an assigned username. Ask your admin to send a new invite.'},
+        )
+    if User.objects.filter(username=assigned_username).exists():
+        raise ValidationError(
+            {'username': 'This username is no longer available. Ask your admin to send a new invite.'},
+        )
 
     resolved_first = (first_name or invite.first_name or '').strip()
     resolved_last = (last_name or invite.last_name or '').strip()
@@ -126,7 +145,7 @@ def accept_staff_invite(
 
     profile = create_staff_user(
         actor,
-        username=username.strip(),
+        username=assigned_username,
         email=invite.email,
         password=password,
         first_name=resolved_first,

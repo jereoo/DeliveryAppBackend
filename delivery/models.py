@@ -104,6 +104,7 @@ class StaffInvite(models.Model):
     """Email invite for staff onboarding (Phase 4G Slice 5)."""
 
     token = models.CharField(max_length=64, unique=True, db_index=True)
+    username = models.CharField(max_length=150, blank=True, default='')
     email = models.EmailField()
     staff_role = models.CharField(max_length=32, choices=StaffRole.choices)
     first_name = models.CharField(max_length=150, blank=True, default='')
