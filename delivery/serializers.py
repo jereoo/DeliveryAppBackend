@@ -314,8 +314,9 @@ class DriverSerializer(serializers.ModelSerializer):
     class Meta:
         model = Driver
         fields = [
-            'id', 'user', 'first_name', 'last_name', 'phone_number', 'license_number',
-            'license_issuing_region',
+            'id', 'user', 'first_name', 'last_name', 'phone_number',
+            'emergency_contact_name', 'emergency_contact_phone',
+            'license_number', 'license_issuing_region',
             'address_unit', 'address_street', 'address_city', 'address_state',
             'address_postal_code', 'address_country',
             'active',
@@ -373,6 +374,17 @@ class DriverSerializer(serializers.ModelSerializer):
         digits = re.sub(r'\D', '', value or '')
         if len(digits) != 10:
             raise serializers.ValidationError('Phone must be exactly 10 digits (North America, no area code).')
+        return digits
+
+    def validate_emergency_contact_phone(self, value):
+        import re
+        digits = re.sub(r'\D', '', value or '')
+        if not digits:
+            return ''
+        if len(digits) != 10:
+            raise serializers.ValidationError(
+                'Emergency contact phone must be exactly 10 digits (North America, no area code).',
+            )
         return digits
     
     def create(self, validated_data):
@@ -481,7 +493,8 @@ class StaffDriverCreateSerializer(serializers.ModelSerializer):
         model = Driver
         fields = [
             'username', 'email', 'password', 'first_name', 'last_name',
-            'phone_number', 'license_number', 'license_issuing_region',
+            'phone_number', 'emergency_contact_name', 'emergency_contact_phone',
+            'license_number', 'license_issuing_region',
             'address_unit', 'address_street', 'address_city', 'address_state',
             'address_postal_code', 'address_country', 'active',
         ]
@@ -492,6 +505,17 @@ class StaffDriverCreateSerializer(serializers.ModelSerializer):
         if len(digits) != 10:
             raise serializers.ValidationError(
                 'Phone must be exactly 10 digits (North America, no area code).'
+            )
+        return digits
+
+    def validate_emergency_contact_phone(self, value):
+        import re
+        digits = re.sub(r'\D', '', value or '')
+        if not digits:
+            return ''
+        if len(digits) != 10:
+            raise serializers.ValidationError(
+                'Emergency contact phone must be exactly 10 digits (North America, no area code).',
             )
         return digits
 
@@ -522,7 +546,7 @@ class VehicleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vehicle
         fields = [
-            'id', 'license_plate', 'make', 'model', 'year', 'vin', 'capacity', 'capacity_unit',
+            'id', 'license_plate', 'colour', 'make', 'model', 'year', 'vin', 'capacity', 'capacity_unit',
             'capacity_display', 'full_model', 'active', 'approval_status', 'resubmit_reason',
             'approved_at', 'model_spec_id', 'identity_locked', 'registration_verified',
             'can_replace_vehicle',
@@ -598,8 +622,9 @@ class DriverMeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Driver
         fields = [
-            'id', 'first_name', 'last_name', 'phone_number', 'license_number',
-            'license_issuing_region', 'active',
+            'id', 'first_name', 'last_name', 'phone_number',
+            'emergency_contact_name', 'emergency_contact_phone',
+            'license_number', 'license_issuing_region', 'active',
             'approval_status', 'approval_rejection_reason',
             'address_unit', 'address_street', 'address_city', 'address_state',
             'address_postal_code', 'address_country', 'full_address', 'password',
@@ -611,6 +636,17 @@ class DriverMeSerializer(serializers.ModelSerializer):
         if len(digits) != 10:
             raise serializers.ValidationError(
                 'Phone must be exactly 10 digits (North America, no area code).'
+            )
+        return digits
+
+    def validate_emergency_contact_phone(self, value):
+        import re
+        digits = re.sub(r'\D', '', value or '')
+        if not digits:
+            return ''
+        if len(digits) != 10:
+            raise serializers.ValidationError(
+                'Emergency contact phone must be exactly 10 digits (North America, no area code).',
             )
         return digits
 
@@ -842,6 +878,14 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
         default='kg',
         help_text="Capacity unit (kg or lb)"
     )
+    vehicle_colour = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+        default='',
+        max_length=40,
+        help_text='Vehicle exterior colour (optional)',
+    )
     license_issuing_region = serializers.CharField(
         write_only=True,
         help_text='Province/state code, e.g. CA-BC or US-CA',
@@ -854,7 +898,7 @@ class DriverRegistrationSerializer(serializers.ModelSerializer):
                  'address_unit', 'address_street', 'address_city', 'address_state',
                  'address_postal_code', 'address_country',
                  'vehicle_license_plate', 'vehicle_model_spec_id', 'vehicle_year', 'vehicle_vin',
-                 'vehicle_capacity', 'vehicle_capacity_unit']
+                 'vehicle_capacity', 'vehicle_capacity_unit', 'vehicle_colour']
         extra_kwargs = {
             'license_number': {'validators': []},
         }
@@ -981,6 +1025,7 @@ class DriverReplaceVehicleSerializer(serializers.Serializer):
     vehicle_vin = serializers.CharField(max_length=17)
     vehicle_capacity = serializers.IntegerField()
     vehicle_capacity_unit = serializers.ChoiceField(choices=Vehicle.CAPACITY_UNIT_CHOICES, default='lb')
+    vehicle_colour = serializers.CharField(max_length=40, required=False, allow_blank=True, default='')
 
 
 class DriverVehicleResubmitSerializer(serializers.Serializer):
@@ -990,6 +1035,7 @@ class DriverVehicleResubmitSerializer(serializers.Serializer):
     vehicle_vin = serializers.CharField(max_length=17)
     vehicle_capacity = serializers.IntegerField()
     vehicle_capacity_unit = serializers.ChoiceField(choices=Vehicle.CAPACITY_UNIT_CHOICES, default='lb')
+    vehicle_colour = serializers.CharField(max_length=40, required=False, allow_blank=True, default='')
 
 
 class VehicleResubmitRequestSerializer(serializers.Serializer):

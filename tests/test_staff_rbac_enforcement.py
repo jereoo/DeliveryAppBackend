@@ -54,7 +54,7 @@ class StaffRbacEnforcementTests(APITestCase):
             make='Ford',
             model='F-150',
             year=2022,
-            vin='1RBACTESTVIN000001',
+            vin='1RBACTESTVIN00001',
             capacity=1500,
             capacity_unit='kg',
             active=False,

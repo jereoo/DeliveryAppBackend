@@ -137,7 +137,13 @@ class CanManageDriver(BasePermission):
             return True
         if user_has_staff_permission(request.user, PERM_DRIVERS_VIEW):
             return view.action in ('retrieve', 'list', 'dispatch_eligibility')
-        if view.action in ('retrieve', 'update', 'partial_update', 'assign_vehicle'):
+        if view.action in (
+            'retrieve',
+            'update',
+            'partial_update',
+            'assign_vehicle',
+            'dispatch_eligibility',
+        ):
             return obj.user_id == request.user.id
         return False
 

@@ -21,6 +21,7 @@ def replace_driver_vehicle(
     vehicle_vin: str,
     vehicle_capacity: int,
     vehicle_capacity_unit: str,
+    vehicle_colour: str = '',
 ) -> tuple:
     """
     Deactivate and close assignment on current vehicle, create a new pending vehicle,
@@ -45,6 +46,7 @@ def replace_driver_vehicle(
         vehicle_vin=vehicle_vin,
         vehicle_capacity=vehicle_capacity,
         vehicle_capacity_unit=vehicle_capacity_unit,
+        vehicle_colour=vehicle_colour,
         approval_status=VehicleApprovalStatus.PENDING,
         active=False,
     )

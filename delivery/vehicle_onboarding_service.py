@@ -21,6 +21,7 @@ def create_vehicle_from_catalog(
     vehicle_vin: str,
     vehicle_capacity: int,
     vehicle_capacity_unit: str,
+    vehicle_colour: str = '',
     approval_status: str = VehicleApprovalStatus.PENDING,
     active: bool = False,
 ) -> Vehicle:
@@ -38,6 +39,7 @@ def create_vehicle_from_catalog(
 
     return Vehicle.objects.create(
         license_plate=plate,
+        colour=(vehicle_colour or '').strip(),
         model_spec=spec,
         make=spec.manufacturer.name,
         model=spec.name,

@@ -291,6 +291,8 @@ class Driver(models.Model):
     last_name = models.CharField(max_length=150, blank=True, help_text='Driver last name')
     
     phone_number = models.CharField(max_length=20)
+    emergency_contact_name = models.CharField(max_length=150, blank=True, default='')
+    emergency_contact_phone = models.CharField(max_length=20, blank=True, default='')
     address_unit = models.CharField(max_length=20, blank=True, null=True, help_text='Unit/Apartment number')
     address_street = models.CharField(max_length=255, blank=True, null=True, help_text='Street address')
     address_city = models.CharField(max_length=100, blank=True, null=True, help_text='City')
@@ -436,6 +438,7 @@ class Vehicle(models.Model):
     ]
     
     license_plate = models.CharField(max_length=20, unique=True)
+    colour = models.CharField(max_length=40, blank=True, default='', help_text='Exterior colour for identification')
     model_spec = models.ForeignKey(
         VehicleModelSpec,
         on_delete=models.PROTECT,

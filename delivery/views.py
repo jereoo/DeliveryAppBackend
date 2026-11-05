@@ -233,6 +233,7 @@ class DriverViewSet(viewsets.ModelViewSet):
             vehicle_vin=data['vehicle_vin'],
             vehicle_capacity=data['vehicle_capacity'],
             vehicle_capacity_unit=data['vehicle_capacity_unit'],
+            vehicle_colour=data.get('vehicle_colour', ''),
         )
         return Response(
             {
@@ -268,6 +269,7 @@ class DriverViewSet(viewsets.ModelViewSet):
                 'vin': data['vehicle_vin'],
                 'capacity': data['vehicle_capacity'],
                 'capacity_unit': data['vehicle_capacity_unit'],
+                'colour': data.get('vehicle_colour', ''),
             },
         )
         return Response(

@@ -81,6 +81,7 @@ def register_driver(validated_data: dict) -> Driver:
         vehicle_vin=validated_data.pop('vehicle_vin'),
         vehicle_capacity=validated_data.pop('vehicle_capacity'),
         vehicle_capacity_unit=validated_data.pop('vehicle_capacity_unit'),
+        vehicle_colour=validated_data.pop('vehicle_colour', ''),
         approval_status=VehicleApprovalStatus.PENDING,
         active=False,
     )

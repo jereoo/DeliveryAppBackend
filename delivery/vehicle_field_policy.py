@@ -48,11 +48,11 @@ def filter_driver_vehicle_patch_data(vehicle: Vehicle, data: dict) -> dict:
         return {}
 
     if vehicle.approval_status == VehicleApprovalStatus.RESUBMIT:
-        allowed = set(IDENTITY_FIELDS)
+        allowed = set(IDENTITY_FIELDS) | {'colour'}
     elif vehicle.approval_status == VehicleApprovalStatus.PENDING:
-        allowed = set(IDENTITY_FIELDS)
+        allowed = set(IDENTITY_FIELDS) | {'colour'}
     elif vehicle.approval_status == VehicleApprovalStatus.APPROVED:
-        allowed = {'active'}
+        allowed = {'active', 'colour'}
     else:
         allowed = set()
 
@@ -106,3 +106,6 @@ def apply_driver_vehicle_identity_update(vehicle: Vehicle, data: dict) -> None:
             validate_capacity_for_spec(vehicle.model_spec, capacity, unit)
         vehicle.capacity = capacity
         vehicle.capacity_unit = unit
+
+    if 'colour' in data:
+        vehicle.colour = str(data['colour'] or '').strip()
